@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Irányok játék - 3x3 - 10 állat</title>
+  <style>
+    :root{
+      --gap: 10px;
+      --cell: 92px;
+      --radius: 12px;
+      --bg: #0b1020;
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --ok: rgba(92, 255, 156, .35);
+      --bad: rgba(255, 92, 92, .35);
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app{
+      min-height: 100vh;
+      display:flex;
+      flex-direction: column;
+      padding: 14px;
+      gap: 12px;
+    }
+
+    .topbar{
+      display:flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px 12px;
+    }
+
+    .title{ font-weight: 700; letter-spacing: .2px; }
+
+    .task{
+      display:flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 260px;
+      flex: 1;
+    }
+    .task strong{ font-size: 16px; }
+    .task small{ color: var(--muted); line-height: 1.2; }
+
+    .controls{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 650;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    button:active{ transform: translateY(1px); }
+
+    .stage{
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .card{
+      width: min(520px, 96vw);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .gridWrap{
+      display:flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, var(--cell));
+      grid-template-rows: repeat(3, var(--cell));
+      gap: var(--gap);
+      padding: var(--gap);
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.16);
+      touch-action: none;
+      user-select: none;
+      position: relative;
+    }
+
+    .cell{
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      position: relative;
+    }
+
+    .cell.ok{ outline: 4px solid var(--ok); }
+    .cell.bad{ outline: 4px solid var(--bad); }
+
+    .piece{
+      width: calc(var(--cell) - 10px);
+      height: calc(var(--cell) - 10px);
+      border-radius: 16px;
+      display:flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 44px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 10px 22px rgba(0,0,0,.32);
+      position: absolute;
+      left: 5px;
+      top: 5px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .piece.fixed{
+      background: rgba(255,255,255,.08);
+      box-shadow: none;
+      border-style: dashed;
+      opacity: .95;
+    }
+
+    .piece.dragging{
+      transform: scale(1.06);
+      z-index: 9999;
+    }
+
+    .trayTitle{
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .trayHint{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.25;
+      margin-bottom: 10px;
+    }
+
+    .tray{
+      display:flex;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(0,0,0,.12);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .traySlot{
+      width: 92px;
+      height: 92px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      display:flex;
+      align-items: center;
+      justify-content:center;
+      position: relative;
+    }
+
+    .traySlot .piece{
+      position: static;
+      width: 82px;
+      height: 82px;
+      font-size: 48px;
+    }
+
+    .status{
+      font-weight: 700;
+      min-height: 22px;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .status.ok{ color: rgba(160,255,200,.95); }
+    .status.bad{ color: rgba(255,160,160,.95); }
+    .status.neutral{ color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="task">
+        <div class="title">Irányok gyakorlása (3×3) – 10 állat</div>
+        <strong id="taskText">Nyomd meg az “Új feladat” gombot.</strong>
+        <small id="taskSub">A beszéd lejátszásához az első gombnyomás után a böngésző engedélyezi a hangot.</small>
+      </div>
+      <div class="controls">
+        <button id="btnNew">Új feladat</button>
+        <button id="btnRepeat">Ismételd a hangot</button>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="card">
+        <div class="gridWrap">
+          <div id="grid" class="grid" aria-label="3x3 rács"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="trayTitle">Állatok (húzd a rácsra)</div>
+        <div class="trayHint">
+          Minden körben 1 állat van a rácson, és 3 állat a rács alatt. Hallgasd meg az utasítást, és a megfelelő állatot húzd a megfelelő mezőre.
+          Lerakás után a játék azonnal resetel és jön az új feladat.
+        </div>
+        <div id="tray" class="tray"></div>
+        <div id="status" class="status neutral">Készen áll.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const GRID_N = 3;
+
+  // 10 állat (név + tárgyeset + névelő)
+  // Megjegyzés: a magyar tárgyeset itt előre megadva, hogy a TTS és a mondat is természetes legyen.
+  const entities = {
+    bunny:   { id:"bunny",   nameHU:"nyuszi",   accHU:"nyuszit",    articleNom:"a",  articleAcc:"a",  emoji:"🐰", fixed:false, pos:null },
+    elephant:{ id:"elephant",nameHU:"elefánt",  accHU:"elefántot",  articleNom:"az", articleAcc:"az", emoji:"🐘", fixed:false, pos:null },
+    lion:    { id:"lion",    nameHU:"oroszlán", accHU:"oroszlánt",  articleNom:"az", articleAcc:"az", emoji:"🦁", fixed:false, pos:null },
+    fox:     { id:"fox",     nameHU:"róka",     accHU:"rókát",      articleNom:"a",  articleAcc:"a",  emoji:"🦊", fixed:false, pos:null },
+    panda:   { id:"panda",   nameHU:"panda",    accHU:"pandát",     articleNom:"a",  articleAcc:"a",  emoji:"🐼", fixed:false, pos:null },
+    monkey:  { id:"monkey",  nameHU:"majom",    accHU:"majmot",     articleNom:"a",  articleAcc:"a",  emoji:"🐵", fixed:false, pos:null },
+    dog:     { id:"dog",     nameHU:"kutya",    accHU:"kutyát",     articleNom:"a",  articleAcc:"a",  emoji:"🐶", fixed:false, pos:null },
+    cat:     { id:"cat",     nameHU:"cica",     accHU:"cicát",      articleNom:"a",  articleAcc:"a",  emoji:"🐱", fixed:false, pos:null },
+    frog:    { id:"frog",    nameHU:"béka",     accHU:"békát",      articleNom:"a",  articleAcc:"a",  emoji:"🐸", fixed:false, pos:null },
+    bear:    { id:"bear",    nameHU:"medve",    accHU:"medvét",     articleNom:"a",  articleAcc:"a",  emoji:"🐻", fixed:false, pos:null }
+  };
+
+  // Relációk – a mondatban a rácson lévő (referencia) állatra hivatkozunk
+  const relations = {
+    above: { dx: 0, dy: -1, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} fölé` },
+    below: { dx: 0, dy:  1, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} alá` },
+    left:  { dx:-1, dy:  0, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} bal oldalára` },
+    right: { dx: 1, dy:  0, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} jobb oldalára` }
+  };
+
+  const gridEl = document.getElementById("grid");
+  const trayEl = document.getElementById("tray");
+  const taskTextEl = document.getElementById("taskText");
+  const statusEl = document.getElementById("status");
+  const btnNew = document.getElementById("btnNew");
+  const btnRepeat = document.getElementById("btnRepeat");
+
+  let cellEls = [];
+  let currentTask = null; // { refId, trayIds[], movingId, relKey, target:{r,c}, textHU }
+  let lastSpokenText = "";
+
+  let dragging = null; // { id, el, offsetX, offsetY }
+  let resetTimer = null;
+
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function setStatus(type, text){
+    statusEl.classList.remove("ok","bad","neutral");
+    statusEl.classList.add(type);
+    statusEl.textContent = text;
+  }
+
+  function clearCellHighlights(){
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        cellEls[r][c].classList.remove("ok","bad");
+      }
+    }
+  }
+
+  function cellAtPoint(clientX, clientY){
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const el = cellEls[r][c];
+        const rect = el.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom){
+          return { r, c, el };
+        }
+      }
+    }
+    return null;
+  }
+
+  function isOccupied(r, c){
+    for (const e of Object.values(entities)){
+      if (e.pos && e.pos.r === r && e.pos.c === c) return true;
+    }
+    return false;
+  }
+
+  function getEntityById(id){ return entities[id]; }
+
+  function cleanupFloatingDrag(){
+    if (dragging && dragging.el){
+      try{
+        dragging.el.classList.remove("dragging");
+        dragging.el.remove();
+      }catch(_){}
+    }
+    dragging = null;
+    document.querySelectorAll(".piece.dragging").forEach(el => el.remove());
+  }
+
+  function speakHU(text){
+    lastSpokenText = text;
+    if (!("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "hu-HU";
+    u.rate = 0.95;
+    u.pitch = 1.0;
+
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    const huVoice = voices.find(v => (v.lang || "").toLowerCase().startsWith("hu"));
+    if (huVoice) u.voice = huVoice;
+
+    window.speechSynthesis.speak(u);
+  }
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = () => {};
+  }
+
+  function buildGrid(){
+    gridEl.innerHTML = "";
+    cellEls = Array.from({length: GRID_N}, () => Array.from({length: GRID_N}, () => null));
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        gridEl.appendChild(cell);
+        cellEls[r][c] = cell;
+      }
+    }
+  }
+
+  function createPieceElement(entity, draggable){
+    const el = document.createElement("div");
+    el.className = "piece" + (draggable ? "" : " fixed");
+    el.dataset.id = entity.id;
+    el.textContent = entity.emoji;
+    el.setAttribute("role","img");
+    el.setAttribute("aria-label", entity.nameHU);
+
+    if (draggable){
+      el.addEventListener("pointerdown", onPointerDown, {passive:false});
+    }
+    return el;
+  }
+
+  function renderAll(){
+    // Clear grid pieces
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const cell = cellEls[r][c];
+        [...cell.querySelectorAll(".piece")].forEach(p => p.remove());
+      }
+    }
+
+    // Render placed pieces
+    for (const e of Object.values(entities)){
+      if (e.pos){
+        const cell = cellEls[e.pos.r][e.pos.c];
+        const isRef = currentTask && e.id === currentTask.refId;
+        const piece = createPieceElement(e, !isRef); // referenciát nem lehet húzni
+        cell.appendChild(piece);
+      }
+    }
+
+    // Render tray (3 random animals)
+    trayEl.innerHTML = "";
+    if (currentTask){
+      for (const id of currentTask.trayIds){
+        const e = getEntityById(id);
+        // ha valamiért már rácson lenne (ideiglenesen), akkor ne legyen a tálcán is
+        if (e.pos) continue;
+        const slot = document.createElement("div");
+        slot.className = "traySlot";
+        const piece = createPieceElement(e, true);
+        slot.appendChild(piece);
+        trayEl.appendChild(slot);
+      }
+    }
+  }
+
+  function randomInt(a, b){ return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+  function pickRandom(arr){
+    return arr[randomInt(0, arr.length - 1)];
+  }
+
+  function pickNWithoutReplacement(arr, n){
+    const copy = arr.slice();
+    for (let i = copy.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, n);
+  }
+
+  function chooseRandomRelationKey(){
+    const keys = Object.keys(relations);
+    return pickRandom(keys);
+  }
+
+  function placeReferenceSoTargetFits(relKey){
+    const rel = relations[relKey];
+
+    const minR = clamp(0 - rel.dy, 0, GRID_N-1);
+    const maxR = clamp((GRID_N-1) - rel.dy, 0, GRID_N-1);
+    const minC = clamp(0 - rel.dx, 0, GRID_N-1);
+    const maxC = clamp((GRID_N-1) - rel.dx, 0, GRID_N-1);
+
+    return { r: randomInt(minR, maxR), c: randomInt(minC, maxC) };
+  }
+
+  function resetPositions(){
+    for (const e of Object.values(entities)){
+      e.pos = null;
+    }
+  }
+
+  function makeTask(){
+    const allIds = Object.keys(entities);
+
+    // 1 állat a rácsra (referencia)
+    const refId = pickRandom(allIds);
+
+    // 3 állat a rács alá (tálca) – legyenek különbözők és ne egyezzenek a referenciával
+    const remaining = allIds.filter(id => id !== refId);
+    const trayIds = pickNWithoutReplacement(remaining, 3);
+
+    // A feladatban melyik tálcás állatot kell mozgatni?
+    const movingId = pickRandom(trayIds);
+
+    // Reláció, és a referencia pozíciója úgy, hogy a célmező biztosan rácson belül legyen
+    const relKey = chooseRandomRelationKey();
+    const refPos = placeReferenceSoTargetFits(relKey);
+
+    const rel = relations[relKey];
+    const target = { r: refPos.r + rel.dy, c: refPos.c + rel.dx };
+
+    // Feladat mondat
+    const moving = getEntityById(movingId);
+    const ref = getEntityById(refId);
+    const text = `Tedd ${moving.articleAcc} ${moving.accHU} ${relations[relKey].phrase(ref)}.`;
+
+    return { refId, trayIds, movingId, relKey, target, textHU: text, refPos };
+  }
+
+  function scheduleResetAndNextTask(delayMs){
+    if (resetTimer) clearTimeout(resetTimer);
+    resetTimer = setTimeout(() => {
+      cleanupFloatingDrag();
+      clearCellHighlights();
+
+      // teljes reset: semmi ne maradjon a rácson az új kör előtt
+      resetPositions();
+
+      currentTask = makeTask();
+
+      // állítsuk be a referencia állatot a rácson
+      entities[currentTask.refId].pos = { ...currentTask.refPos };
+
+      taskTextEl.textContent = currentTask.textHU;
+      renderAll();
+      setStatus("neutral", "Hallgasd meg az utasítást, majd húzd a megfelelő állatot a megfelelő mezőre.");
+      speakHU(currentTask.textHU);
+    }, delayMs);
+  }
+
+  function startNewTask(){
+    scheduleResetAndNextTask(0);
+  }
+
+  function repeatTaskAudio(){
+    if (lastSpokenText) speakHU(lastSpokenText);
+    else if (currentTask) speakHU(currentTask.textHU);
+  }
+
+  function onPointerDown(ev){
+    ev.preventDefault();
+
+    if (resetTimer) {
+      clearTimeout(resetTimer);
+      resetTimer = null;
+    }
+
+    const id = ev.currentTarget.dataset.id;
+    if (!currentTask) return;
+
+    // csak a tálcán lévő 3 állat húzható
+    if (!currentTask.trayIds.includes(id)) return;
+
+    const el = ev.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const offsetX = ev.clientX - rect.left;
+    const offsetY = ev.clientY - rect.top;
+
+    dragging = { id, el, offsetX, offsetY };
+    el.classList.add("dragging");
+
+    el.style.position = "fixed";
+    el.style.left = (ev.clientX - offsetX) + "px";
+    el.style.top  = (ev.clientY - offsetY) + "px";
+    document.body.appendChild(el);
+
+    el.setPointerCapture(ev.pointerId);
+    el.addEventListener("pointermove", onPointerMove, {passive:false});
+    el.addEventListener("pointerup", onPointerUp, {passive:false});
+    el.addEventListener("pointercancel", onPointerUp, {passive:false});
+  }
+
+  function onPointerMove(ev){
+    if (!dragging) return;
+    ev.preventDefault();
+
+    const { el, offsetX, offsetY } = dragging;
+    el.style.left = (ev.clientX - offsetX) + "px";
+    el.style.top  = (ev.clientY - offsetY) + "px";
+  }
+
+  function onPointerUp(ev){
+    if (!dragging || !currentTask) return;
+    ev.preventDefault();
+
+    const { id, el } = dragging;
+
+    // Takarítsuk el a lebegő elemet azonnal
+    try{
+      el.classList.remove("dragging");
+      el.releasePointerCapture?.(ev.pointerId);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerUp);
+      el.remove();
+    }catch(_){}
+    dragging = null;
+
+    const hit = cellAtPoint(ev.clientX, ev.clientY);
+
+    // Ha nem a rácsra tette: hibás próbálkozás, reset
+    if (!hit){
+      clearCellHighlights();
+      setStatus("bad", "Nem a rácsra tetted.");
+      speakHU("Nem a rácsra tetted.");
+      scheduleResetAndNextTask(900);
+      return;
+    }
+
+    const { r, c } = hit;
+
+    // Foglalt mező (a referencia miatt)
+    if (isOccupied(r, c)){
+      clearCellHighlights();
+      setStatus("bad", "Ez a mező foglalt.");
+      speakHU("Ez a mező foglalt.");
+      scheduleResetAndNextTask(900);
+      return;
+    }
+
+    // Tegyük le ideiglenesen a kiválasztott állatot (visszajelzésig)
+    entities[id].pos = { r, c };
+    renderAll();
+
+    // Helyesség: a megfelelő állat + megfelelő mező
+    const t = currentTask.target;
+    const correctAnimal = (id === currentTask.movingId);
+    const correctCell = (r === t.r && c === t.c);
+    const correct = correctAnimal && correctCell;
+
+    clearCellHighlights();
+
+    if (correct){
+      cellEls[r][c].classList.add("ok");
+      setStatus("ok", "Ügyes vagy!");
+      speakHU("Ügyes vagy!");
+    } else {
+      cellEls[r][c].classList.add("bad");
+      setStatus("bad", "Nem jó helyre tetted.");
+      speakHU("Nem jó helyre tetted.");
+    }
+
+    // Mindig reset + új feladat
+    scheduleResetAndNextTask(900);
+  }
+
+  btnNew.addEventListener("click", () => startNewTask());
+  btnRepeat.addEventListener("click", () => repeatTaskAudio());
+
+  // Init
+  buildGrid();
+  setStatus("neutral", "Nyomd meg az “Új feladat” gombot.");
+})();
+</script>
+</body>
+</html>
