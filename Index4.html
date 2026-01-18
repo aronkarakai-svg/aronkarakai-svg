@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Irányok játék - 4x4 - véletlen referencia minden lépésben</title>
+  <style>
+    :root{
+      --gap: 10px;
+      --cell: 86px;
+      --radius: 12px;
+      --bg: #0b1020;
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --ok: rgba(92, 255, 156, .35);
+      --bad: rgba(255, 92, 92, .35);
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app{
+      min-height: 100vh;
+      display:flex;
+      flex-direction: column;
+      padding: 14px;
+      gap: 12px;
+    }
+
+    .topbar{
+      display:flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px 12px;
+    }
+
+    .title{ font-weight: 700; letter-spacing: .2px; }
+
+    .task{
+      display:flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 260px;
+      flex: 1;
+    }
+    .task strong{ font-size: 16px; }
+    .task small{ color: var(--muted); line-height: 1.2; }
+
+    .controls{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 650;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    button:active{ transform: translateY(1px); }
+
+    .stage{
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .card{
+      width: min(560px, 96vw);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .gridWrap{
+      display:flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(4, var(--cell));
+      grid-template-rows: repeat(4, var(--cell));
+      gap: var(--gap);
+      padding: var(--gap);
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.16);
+      touch-action: none;
+      user-select: none;
+      position: relative;
+    }
+
+    .cell{
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      position: relative;
+    }
+
+    .cell.ok{ outline: 4px solid var(--ok); }
+    .cell.bad{ outline: 4px solid var(--bad); }
+
+    .piece{
+      width: calc(var(--cell) - 10px);
+      height: calc(var(--cell) - 10px);
+      border-radius: 16px;
+      display:flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 42px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 10px 22px rgba(0,0,0,.32);
+      position: absolute;
+      left: 5px;
+      top: 5px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .piece.fixed{
+      background: rgba(255,255,255,.08);
+      box-shadow: none;
+      border-style: dashed;
+      opacity: .95;
+    }
+
+    .piece.dragging{
+      transform: scale(1.06);
+      z-index: 9999;
+    }
+
+    .trayTitle{
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .trayHint{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.25;
+      margin-bottom: 10px;
+    }
+
+    .tray{
+      display:flex;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(0,0,0,.12);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .traySlot{
+      width: 92px;
+      height: 92px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      display:flex;
+      align-items: center;
+      justify-content:center;
+      position: relative;
+    }
+
+    .traySlot .piece{
+      position: static;
+      width: 82px;
+      height: 82px;
+      font-size: 46px;
+    }
+
+    .status{
+      font-weight: 800;
+      min-height: 24px;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .status.ok{ color: rgba(160,255,200,.95); }
+    .status.bad{ color: rgba(255,160,160,.95); }
+    .status.neutral{ color: var(--muted); }
+
+    .progress{
+      margin-top: 6px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="task">
+        <div class="title">Irányok gyakorlása (4×4) – véletlen referencia minden lépésben</div>
+        <strong id="taskText">Nyomd meg az “Új feladat” gombot.</strong>
+        <small id="taskSub">A beszéd lejátszásához az első gombnyomás után a böngésző engedélyezi a hangot.</small>
+      </div>
+      <div class="controls">
+        <button id="btnNew">Új feladat</button>
+        <button id="btnRepeat">Ismételd a hangot</button>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="card">
+        <div class="gridWrap">
+          <div id="grid" class="grid" aria-label="4x4 rács"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="trayTitle">Állatok (húzd a rácsra)</div>
+        <div class="trayHint">
+          3 helyes lépés után jön a végső gratuláció, majd reset. Minden lépésben a referenciaállat véletlenszerű (a rácson lévők közül).
+          Nincs átfedés: a célmezőt előre ellenőrzi a játék.
+        </div>
+        <div id="tray" class="tray"></div>
+        <div id="status" class="status neutral">Készen áll.</div>
+        <div id="progress" class="progress"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const GRID_N = 4;
+  const STEPS_PER_ROUND = 3;
+
+  // 10 állat (név + tárgyeset + névelő)
+  const entities = {
+    bunny:   { id:"bunny",   nameHU:"nyuszi",   accHU:"nyuszit",    articleNom:"a",  articleAcc:"a",  emoji:"🐰", pos:null },
+    elephant:{ id:"elephant",nameHU:"elefánt",  accHU:"elefántot",  articleNom:"az", articleAcc:"az", emoji:"🐘", pos:null },
+    lion:    { id:"lion",    nameHU:"oroszlán", accHU:"oroszlánt",  articleNom:"az", articleAcc:"az", emoji:"🦁", pos:null },
+    fox:     { id:"fox",     nameHU:"róka",     accHU:"rókát",      articleNom:"a",  articleAcc:"a",  emoji:"🦊", pos:null },
+    panda:   { id:"panda",   nameHU:"panda",    accHU:"pandát",     articleNom:"a",  articleAcc:"a",  emoji:"🐼", pos:null },
+    monkey:  { id:"monkey",  nameHU:"majom",    accHU:"majmot",     articleNom:"a",  articleAcc:"a",  emoji:"🐵", pos:null },
+    dog:     { id:"dog",     nameHU:"kutya",    accHU:"kutyát",     articleNom:"a",  articleAcc:"a",  emoji:"🐶", pos:null },
+    cat:     { id:"cat",     nameHU:"cica",     accHU:"cicát",      articleNom:"a",  articleAcc:"a",  emoji:"🐱", pos:null },
+    frog:    { id:"frog",    nameHU:"béka",     accHU:"békát",      articleNom:"a",  articleAcc:"a",  emoji:"🐸", pos:null },
+    bear:    { id:"bear",    nameHU:"medve",    accHU:"medvét",     articleNom:"a",  articleAcc:"a",  emoji:"🐻", pos:null }
+  };
+
+  const relations = {
+    above: { dx: 0, dy: -1, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} fölé` },
+    below: { dx: 0, dy:  1, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} alá` },
+    left:  { dx:-1, dy:  0, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} bal oldalára` },
+    right: { dx: 1, dy:  0, phrase: (ref) => `${ref.articleNom} ${ref.nameHU} jobb oldalára` }
+  };
+
+  const gridEl = document.getElementById("grid");
+  const trayEl = document.getElementById("tray");
+  const taskTextEl = document.getElementById("taskText");
+  const statusEl = document.getElementById("status");
+  const progressEl = document.getElementById("progress");
+  const btnNew = document.getElementById("btnNew");
+  const btnRepeat = document.getElementById("btnRepeat");
+
+  let cellEls = [];
+  let lastSpokenText = "";
+  let dragging = null; // { id, el, offsetX, offsetY }
+
+  // Round state
+  let round = null;
+  // round = {
+  //   trayIds (3),
+  //   stepIndex (0..2),
+  //   seededRefId,
+  //   currentStep: { refId, movingId, relKey, target:{r,c}, textHU }
+  // }
+
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function setStatus(type, text){
+    statusEl.classList.remove("ok","bad","neutral");
+    statusEl.classList.add(type);
+    statusEl.textContent = text;
+  }
+
+  function setProgress(){
+    if (!round){
+      progressEl.textContent = "";
+      return;
+    }
+    progressEl.textContent = `Lépés: ${round.stepIndex + 1} / ${STEPS_PER_ROUND}`;
+  }
+
+  function clearCellHighlights(){
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        cellEls[r][c].classList.remove("ok","bad");
+      }
+    }
+  }
+
+  function cellAtPoint(clientX, clientY){
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const el = cellEls[r][c];
+        const rect = el.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom){
+          return { r, c, el };
+        }
+      }
+    }
+    return null;
+  }
+
+  function isOccupied(r, c){
+    for (const e of Object.values(entities)){
+      if (e.pos && e.pos.r === r && e.pos.c === c) return true;
+    }
+    return false;
+  }
+
+  function occupiedByIdAt(r, c){
+    for (const e of Object.values(entities)){
+      if (e.pos && e.pos.r === r && e.pos.c === c) return e.id;
+    }
+    return null;
+  }
+
+  function resetAllPositions(){
+    for (const e of Object.values(entities)){
+      e.pos = null;
+    }
+  }
+
+  function cleanupFloatingDrag(){
+    if (dragging && dragging.el){
+      try{ dragging.el.remove(); }catch(_){}
+    }
+    dragging = null;
+    document.querySelectorAll(".piece.dragging").forEach(el => el.remove());
+  }
+
+  function speakHU(text){
+    lastSpokenText = text;
+    if (!("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "hu-HU";
+    u.rate = 0.95;
+    u.pitch = 1.0;
+
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    const huVoice = voices.find(v => (v.lang || "").toLowerCase().startsWith("hu"));
+    if (huVoice) u.voice = huVoice;
+
+    window.speechSynthesis.speak(u);
+  }
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = () => {};
+  }
+
+  function randomInt(a, b){ return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function pickRandom(arr){ return arr[randomInt(0, arr.length - 1)]; }
+
+  function pickNWithoutReplacement(arr, n){
+    const copy = arr.slice();
+    for (let i = copy.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, n);
+  }
+
+  function chooseRandomRelationKey(){
+    const keys = Object.keys(relations);
+    return pickRandom(keys);
+  }
+
+  function buildGrid(){
+    gridEl.innerHTML = "";
+    cellEls = Array.from({length: GRID_N}, () => Array.from({length: GRID_N}, () => null));
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        gridEl.appendChild(cell);
+        cellEls[r][c] = cell;
+      }
+    }
+  }
+
+  function createPieceElement(entity, draggable){
+    const el = document.createElement("div");
+    el.className = "piece" + (draggable ? "" : " fixed");
+    el.dataset.id = entity.id;
+    el.textContent = entity.emoji;
+    el.setAttribute("role","img");
+    el.setAttribute("aria-label", entity.nameHU);
+
+    if (draggable){
+      el.addEventListener("pointerdown", onPointerDown, {passive:false});
+    }
+    return el;
+  }
+
+  function renderAll(){
+    // grid clear
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const cell = cellEls[r][c];
+        [...cell.querySelectorAll(".piece")].forEach(p => p.remove());
+      }
+    }
+
+    // grid pieces: minden, ami pos-szal rendelkezik (rögzített)
+    for (const e of Object.values(entities)){
+      if (e.pos){
+        const cell = cellEls[e.pos.r][e.pos.c];
+        const piece = createPieceElement(e, false);
+        cell.appendChild(piece);
+      }
+    }
+
+    // tray
+    trayEl.innerHTML = "";
+    if (round){
+      for (const id of round.trayIds){
+        const e = entities[id];
+        if (e.pos) continue;
+        const slot = document.createElement("div");
+        slot.className = "traySlot";
+        const piece = createPieceElement(e, true);
+        slot.appendChild(piece);
+        trayEl.appendChild(slot);
+      }
+    }
+  }
+
+  // --- Step generation with random reference on each step, no overlap ---
+
+  function insideGrid(r,c){
+    return r >= 0 && r < GRID_N && c >= 0 && c < GRID_N;
+  }
+
+  function currentGridIds(){
+    return Object.values(entities).filter(e => e.pos).map(e => e.id);
+  }
+
+  function pickRandomReferenceId(){
+    const idsOnGrid = currentGridIds();
+    return pickRandom(idsOnGrid);
+  }
+
+  function availableMovingIds(){
+    return round.trayIds.filter(id => !entities[id].pos);
+  }
+
+  function computeTarget(refPos, relKey){
+    const rel = relations[relKey];
+    return { r: refPos.r + rel.dy, c: refPos.c + rel.dx };
+  }
+
+  function findValidStep(){
+    // moving: tálcán még nem lerakott
+    const movingCandidates = availableMovingIds();
+    if (movingCandidates.length === 0) return null;
+
+    // referencia: véletlen a rácson lévők közül
+    // (az első lépésnél csak az első referencia van a rácson)
+    const refCandidates = currentGridIds();
+    if (refCandidates.length === 0) return null;
+
+    // Megpróbálunk találni olyan kombinációt, ahol a célmező:
+    // - rácson belül van
+    // - nincs foglalva (nincs overlapping)
+    // (és a mozgatandó állat is a tálcáról jön)
+    let guard = 0;
+    while (guard < 200){
+      const refId = pickRandom(refCandidates);
+      const ref = entities[refId];
+      const relKey = chooseRandomRelationKey();
+      const target = computeTarget(ref.pos, relKey);
+
+      if (!insideGrid(target.r, target.c)){ guard++; continue; }
+      if (isOccupied(target.r, target.c)){ guard++; continue; }
+
+      const movingId = pickRandom(movingCandidates);
+      const moving = entities[movingId];
+
+      const textHU = `Tedd ${moving.articleAcc} ${moving.accHU} ${relations[relKey].phrase(ref)}.`;
+      return { refId, movingId, relKey, target, textHU };
+    }
+    return null;
+  }
+
+  function placeInitialReference(){
+    // Az első rácsra kerülő állat: teljesen véletlen
+    // Úgy helyezzük, hogy legyen körülötte esély (de itt elég bármely üres cella, 4x4-on bőven van hely)
+    const allIds = Object.keys(entities);
+    const refId = pickRandom(allIds);
+
+    // üres cella random
+    const allCells = [];
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        allCells.push({r,c});
+      }
+    }
+    const pos = pickRandom(allCells);
+    entities[refId].pos = { ...pos };
+    return refId;
+  }
+
+  function makeNewRound(){
+    resetAllPositions();
+    cleanupFloatingDrag();
+    clearCellHighlights();
+
+    // Kezdő referencia a rácson
+    const seededRefId = placeInitialReference();
+
+    // Tálca: 3 állat, ami nem a kezdő referencia
+    const remaining = Object.keys(entities).filter(id => id !== seededRefId);
+    const trayIds = pickNWithoutReplacement(remaining, 3);
+
+    round = {
+      trayIds,
+      stepIndex: 0,
+      seededRefId,
+      currentStep: null
+    };
+
+    nextStep();
+  }
+
+  function nextStep(){
+    clearCellHighlights();
+
+    // Generálunk egy érvényes lépést (véletlen referencia a rácson lévők közül)
+    const step = findValidStep();
+
+    // Ha valamiért nem található érvényes lépés (ritka), új teljes feladatot indítunk
+    if (!step){
+      setStatus("bad", "Nem találtam jó feladatot, újrakezdem.");
+      speakHU("Nem találtam jó feladatot, újrakezdem.");
+      setTimeout(() => makeNewRound(), 900);
+      return;
+    }
+
+    round.currentStep = step;
+    taskTextEl.textContent = step.textHU;
+    setProgress();
+    renderAll();
+    setStatus("neutral", "Húzd a megfelelő állatot a megfelelő mezőre.");
+    speakHU(step.textHU);
+  }
+
+  function finishRound(){
+    setStatus("ok", "Gratulálok, mindet jól megoldottad!");
+    speakHU("Gratulálok, mindet jól megoldottad.");
+
+    setTimeout(() => {
+      makeNewRound();
+    }, 1300);
+  }
+
+  function repeatTaskAudio(){
+    if (lastSpokenText) speakHU(lastSpokenText);
+    else if (round && round.currentStep) speakHU(round.currentStep.textHU);
+  }
+
+  // --- Drag & drop (pointer) ---
+
+  function onPointerDown(ev){
+    ev.preventDefault();
+    if (!round || !round.currentStep) return;
+
+    const id = ev.currentTarget.dataset.id;
+
+    // csak tálcás és még le nem rakott állat húzható
+    if (!round.trayIds.includes(id)) return;
+    if (entities[id].pos) return;
+
+    const el = ev.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const offsetX = ev.clientX - rect.left;
+    const offsetY = ev.clientY - rect.top;
+
+    dragging = { id, el, offsetX, offsetY };
+    el.classList.add("dragging");
+    el.style.position = "fixed";
+    el.style.left = (ev.clientX - offsetX) + "px";
+    el.style.top  = (ev.clientY - offsetY) + "px";
+    document.body.appendChild(el);
+
+    el.setPointerCapture(ev.pointerId);
+    el.addEventListener("pointermove", onPointerMove, {passive:false});
+    el.addEventListener("pointerup", onPointerUp, {passive:false});
+    el.addEventListener("pointercancel", onPointerUp, {passive:false});
+  }
+
+  function onPointerMove(ev){
+    if (!dragging) return;
+    ev.preventDefault();
+    const { el, offsetX, offsetY } = dragging;
+    el.style.left = (ev.clientX - offsetX) + "px";
+    el.style.top  = (ev.clientY - offsetY) + "px";
+  }
+
+  function onPointerUp(ev){
+    if (!dragging || !round || !round.currentStep) return;
+    ev.preventDefault();
+
+    const { id, el } = dragging;
+
+    try{
+      el.classList.remove("dragging");
+      el.releasePointerCapture?.(ev.pointerId);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerUp);
+      el.remove();
+    }catch(_){}
+    dragging = null;
+
+    const hit = cellAtPoint(ev.clientX, ev.clientY);
+    if (!hit){
+      clearCellHighlights();
+      setStatus("bad", "Nem a rácsra tetted.");
+      speakHU("Nem a rácsra tetted.");
+      renderAll();
+      return;
+    }
+
+    const { r, c } = hit;
+
+    // foglalt mező
+    if (isOccupied(r, c)){
+      clearCellHighlights();
+      setStatus("bad", "Ez a mező foglalt.");
+      speakHU("Ez a mező foglalt.");
+      renderAll();
+      return;
+    }
+
+    // Ellenőrzés: állat + mező
+    const step = round.currentStep;
+    const correctAnimal = (id === step.movingId);
+    const correctCell = (r === step.target.r && c === step.target.c);
+    const correct = correctAnimal && correctCell;
+
+    clearCellHighlights();
+
+    if (!correct){
+      cellEls[r][c].classList.add("bad");
+      setStatus("bad", "Nem jó helyre tetted.");
+      speakHU("Nem jó helyre tetted.");
+      renderAll();
+      return;
+    }
+
+    // Helyes: rögzítjük a rácsra
+    entities[id].pos = { r, c };
+    renderAll();
+
+    cellEls[r][c].classList.add("ok");
+    setStatus("ok", "Ügyes vagy!");
+    speakHU("Ügyes vagy!");
+
+    // Következő lépés / befejezés
+    round.stepIndex++;
+
+    if (round.stepIndex >= STEPS_PER_ROUND){
+      setProgress();
+      setTimeout(() => finishRound(), 650);
+      return;
+    }
+
+    setTimeout(() => {
+      nextStep();
+    }, 650);
+  }
+
+  // UI
+  btnNew.addEventListener("click", () => makeNewRound());
+  btnRepeat.addEventListener("click", () => repeatTaskAudio());
+
+  // Init
+  buildGrid();
+  setStatus("neutral", "Nyomd meg az “Új feladat” gombot.");
+})();
+</script>
+</body>
+</html>
