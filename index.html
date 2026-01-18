@@ -3,21 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Iranyok jatek - 9x9</title>
+  <title>Irányok játék - 3x3</title>
   <style>
     :root{
-      --gap: 6px;
-      --cell: 52px;
+      --gap: 10px;
+      --cell: 90px;
       --radius: 12px;
       --panel: 320px;
       --bg: #0b1020;
-      --card: #131b34;
       --line: rgba(255,255,255,.14);
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.72);
       --ok: rgba(92, 255, 156, .35);
       --bad: rgba(255, 92, 92, .35);
-      --hint: rgba(106, 170, 255, .28);
     }
 
     *{ box-sizing: border-box; }
@@ -57,13 +55,11 @@
       display:flex;
       flex-direction: column;
       gap: 4px;
-      min-width: 280px;
+      min-width: 260px;
       flex: 1;
     }
 
-    .task strong{
-      font-size: 16px;
-    }
+    .task strong{ font-size: 16px; }
     .task small{
       color: var(--muted);
       line-height: 1.2;
@@ -88,9 +84,7 @@
       user-select: none;
       touch-action: manipulation;
     }
-    button:active{
-      transform: translateY(1px);
-    }
+    button:active{ transform: translateY(1px); }
 
     .main{
       display:flex;
@@ -132,26 +126,21 @@
       line-height: 1.25;
     }
 
-    /* Responsive: tray goes below on narrow screens */
     @media (max-width: 860px){
-      .main{
-        flex-direction: column;
-      }
-      .trayCard{
-        width: 100%;
-      }
+      .main{ flex-direction: column; }
+      .trayCard{ width: 100%; }
     }
 
     .grid{
       display:grid;
-      grid-template-columns: repeat(9, var(--cell));
-      grid-template-rows: repeat(9, var(--cell));
+      grid-template-columns: repeat(3, var(--cell));
+      grid-template-rows: repeat(3, var(--cell));
       gap: var(--gap);
       padding: var(--gap);
       border-radius: 16px;
       border: 1px solid var(--line);
       background: rgba(0,0,0,.16);
-      touch-action: none; /* critical for pointer-drag on tablets */
+      touch-action: none;
       user-select: none;
       position: relative;
     }
@@ -159,29 +148,29 @@
     .cell{
       width: var(--cell);
       height: var(--cell);
-      border-radius: 10px;
+      border-radius: 14px;
       background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.10);
       position: relative;
     }
-    .cell.hint{ outline: 3px solid var(--hint); }
-    .cell.ok{ outline: 3px solid var(--ok); }
-    .cell.bad{ outline: 3px solid var(--bad); }
+
+    .cell.ok{ outline: 4px solid var(--ok); }
+    .cell.bad{ outline: 4px solid var(--bad); }
 
     .piece{
-      width: calc(var(--cell) - 8px);
-      height: calc(var(--cell) - 8px);
-      border-radius: 12px;
+      width: calc(var(--cell) - 10px);
+      height: calc(var(--cell) - 10px);
+      border-radius: 16px;
       display:flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
+      font-size: 42px;
       background: rgba(255,255,255,.10);
       border: 1px solid rgba(255,255,255,.18);
       box-shadow: 0 10px 22px rgba(0,0,0,.32);
       position: absolute;
-      left: 4px;
-      top: 4px;
+      left: 5px;
+      top: 5px;
       touch-action: none;
       user-select: none;
     }
@@ -211,9 +200,9 @@
     }
 
     .traySlot{
-      width: 74px;
-      height: 74px;
-      border-radius: 16px;
+      width: 86px;
+      height: 86px;
+      border-radius: 18px;
       border: 1px solid rgba(255,255,255,.12);
       background: rgba(255,255,255,.05);
       display:flex;
@@ -224,9 +213,9 @@
 
     .traySlot .piece{
       position: static;
-      width: 62px;
-      height: 62px;
-      font-size: 32px;
+      width: 74px;
+      height: 74px;
+      font-size: 44px;
     }
 
     .status{
@@ -236,33 +225,31 @@
     .status.ok{ color: rgba(160,255,200,.95); }
     .status.bad{ color: rgba(255,160,160,.95); }
     .status.neutral{ color: var(--muted); }
-
   </style>
 </head>
 <body>
   <div class="app">
     <div class="topbar">
       <div class="task">
-        <div class="title">Irányok gyakorlása (9×9)</div>
+        <div class="title">Irányok gyakorlása (3×3)</div>
         <strong id="taskText">Nyomd meg az “Új feladat” gombot.</strong>
-        <small id="taskSub">A hang lejátszásához az első interakció után a böngésző engedélyezi a beszédet.</small>
+        <small id="taskSub">A beszéd lejátszásához az első gombnyomás után a böngésző engedélyezi a hangot.</small>
       </div>
       <div class="controls">
         <button id="btnNew">Új feladat</button>
         <button id="btnRepeat">Ismételd a hangot</button>
-        <button id="btnReset">Vissza a tálcára</button>
       </div>
     </div>
 
     <div class="main">
       <div class="boardCard">
-        <div id="grid" class="grid" aria-label="9x9 rács"></div>
+        <div id="grid" class="grid" aria-label="3x3 rács"></div>
       </div>
 
       <div class="trayCard">
         <div class="trayTitle">Tálca (húzd a rácsra)</div>
         <div class="layoutHint">
-          Húzd az állatot a rács megfelelő mezőjére. Ha jó helyre teszed, jön a “Ügyes vagy”. Ha nem, “Nem jó helyre tetted”.
+          Húzd az elefántot a rács egy mezőjére. A rendszer azonnal ellenőriz, majd minden esetben resetel és ad egy új feladatot.
         </div>
         <div id="tray" class="tray"></div>
         <div id="status" class="status neutral">Készen áll.</div>
@@ -272,18 +259,14 @@
 
 <script>
 (() => {
-  // ---------------------------
-  // Config
-  // ---------------------------
-  const GRID_N = 9;
+  const GRID_N = 3;
 
-  // Entities: later you can add more animals here.
   const entities = {
-    bunny:    { id: "bunny",    nameHU: "nyuszi",   emoji: "🐰", fixed: true,  pos: null },
-    elephant: { id: "elephant", nameHU: "elefánt",  emoji: "🐘", fixed: false, pos: null }
+    bunny:    { id: "bunny",    nameHU: "nyuszi",  emoji: "🐰", fixed: true,  pos: null },
+    elephant: { id: "elephant", nameHU: "elefánt", emoji: "🐘", fixed: false, pos: null }
   };
 
-  // Relations and Hungarian phrasing
+  // "a nyuszitól jobbra/balra/fölé/alá"
   const relations = {
     above: { dx: 0, dy: -1, hu: "fölé" },
     below: { dx: 0, dy:  1, hu: "alá" },
@@ -291,30 +274,19 @@
     right: { dx:  1, dy: 0, hu: "jobbra" }
   };
 
-  // ---------------------------
-  // DOM
-  // ---------------------------
   const gridEl = document.getElementById("grid");
   const trayEl = document.getElementById("tray");
   const taskTextEl = document.getElementById("taskText");
   const statusEl = document.getElementById("status");
   const btnNew = document.getElementById("btnNew");
   const btnRepeat = document.getElementById("btnRepeat");
-  const btnReset = document.getElementById("btnReset");
 
-  // ---------------------------
-  // State
-  // ---------------------------
-  let cellEls = []; // [row][col]
-  let currentTask = null; // {movingId, refId, relKey, target:{r,c}, textHU}
+  let cellEls = [];
+  let currentTask = null;
   let lastSpokenText = "";
 
-  // Drag state
-  let dragging = null; // { id, el, originParent, originNextSibling, startX, startY, offsetX, offsetY }
+  let dragging = null; // { id, el, offsetX, offsetY }
 
-  // ---------------------------
-  // Helpers
-  // ---------------------------
   function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
   function setStatus(type, text){
@@ -326,13 +298,12 @@
   function clearCellHighlights(){
     for (let r=0; r<GRID_N; r++){
       for (let c=0; c<GRID_N; c++){
-        cellEls[r][c].classList.remove("hint","ok","bad");
+        cellEls[r][c].classList.remove("ok","bad");
       }
     }
   }
 
   function cellAtPoint(clientX, clientY){
-    // find which cell rect contains point
     for (let r=0; r<GRID_N; r++){
       for (let c=0; c<GRID_N; c++){
         const el = cellEls[r][c];
@@ -346,8 +317,7 @@
   }
 
   function isOccupied(r, c){
-    for (const k of Object.keys(entities)){
-      const e = entities[k];
+    for (const e of Object.values(entities)){
       if (e.pos && e.pos.r === r && e.pos.c === c) return true;
     }
     return false;
@@ -357,13 +327,10 @@
     return Object.values(entities).find(e => e.id === id);
   }
 
-  // Hungarian TTS (speechSynthesis)
   function speakHU(text){
     lastSpokenText = text;
-
     if (!("speechSynthesis" in window)) return;
 
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
     const u = new SpeechSynthesisUtterance(text);
@@ -371,7 +338,6 @@
     u.rate = 0.95;
     u.pitch = 1.0;
 
-    // Pick a Hungarian voice if available (best effort)
     const voices = window.speechSynthesis.getVoices?.() || [];
     const huVoice = voices.find(v => (v.lang || "").toLowerCase().startsWith("hu"));
     if (huVoice) u.voice = huVoice;
@@ -379,26 +345,17 @@
     window.speechSynthesis.speak(u);
   }
 
-  // Some browsers load voices async
   if ("speechSynthesis" in window) {
-    window.speechSynthesis.onvoiceschanged = () => {
-      // no-op; this ensures voices list becomes available after first load
-    };
+    window.speechSynthesis.onvoiceschanged = () => {};
   }
 
-  // ---------------------------
-  // Rendering
-  // ---------------------------
   function buildGrid(){
     gridEl.innerHTML = "";
     cellEls = Array.from({length: GRID_N}, () => Array.from({length: GRID_N}, () => null));
-
     for (let r=0; r<GRID_N; r++){
       for (let c=0; c<GRID_N; c++){
         const cell = document.createElement("div");
         cell.className = "cell";
-        cell.dataset.r = String(r);
-        cell.dataset.c = String(c);
         gridEl.appendChild(cell);
         cellEls[r][c] = cell;
       }
@@ -414,23 +371,21 @@
     el.setAttribute("aria-label", entity.nameHU);
 
     if (!entity.fixed){
-      // Pointer-based drag
       el.addEventListener("pointerdown", onPointerDown, {passive:false});
     }
     return el;
   }
 
   function renderAll(){
-    // Clear pieces from grid cells
+    // clear pieces from grid
     for (let r=0; r<GRID_N; r++){
       for (let c=0; c<GRID_N; c++){
         const cell = cellEls[r][c];
-        // remove existing pieces
         [...cell.querySelectorAll(".piece")].forEach(p => p.remove());
       }
     }
 
-    // Render fixed pieces (like bunny) into cells
+    // fixed pieces
     for (const e of Object.values(entities)){
       if (e.pos){
         const cell = cellEls[e.pos.r][e.pos.c];
@@ -439,7 +394,7 @@
       }
     }
 
-    // Render tray: only non-fixed entities that are not placed on grid
+    // tray
     trayEl.innerHTML = "";
     for (const e of Object.values(entities)){
       if (!e.fixed && !e.pos){
@@ -452,12 +407,7 @@
     }
   }
 
-  // ---------------------------
-  // Task generation
-  // ---------------------------
-  function randomInt(a, b){ // inclusive
-    return Math.floor(Math.random() * (b - a + 1)) + a;
-  }
+  function randomInt(a, b){ return Math.floor(Math.random() * (b - a + 1)) + a; }
 
   function chooseRandomRelationKey(){
     const keys = Object.keys(relations);
@@ -466,7 +416,6 @@
 
   function placeReferenceSoTargetFits(relKey){
     const rel = relations[relKey];
-    // choose reference position so ref + delta is inside grid
     const minR = clamp(0 - rel.dy, 0, GRID_N-1);
     const maxR = clamp((GRID_N-1) - rel.dy, 0, GRID_N-1);
     const minC = clamp(0 - rel.dx, 0, GRID_N-1);
@@ -481,6 +430,7 @@
     const movingId = "elephant";
     const refId = "bunny";
     const relKey = chooseRandomRelationKey();
+
     placeReferenceSoTargetFits(relKey);
 
     const refPos = entities[refId].pos;
@@ -490,27 +440,27 @@
     const moving = entities[movingId];
     const ref = entities[refId];
 
-    const text = `Tedd az ${moving.nameHU}ot a ${ref.nameHU} ${rel.hu}.`;
-
+    const text = `Tedd az ${moving.nameHU}ot a ${ref.nameHU}tól ${rel.hu}.`;
     return { movingId, refId, relKey, target, textHU: text };
   }
 
+  function hardResetAndNextTask(delayMs){
+    setTimeout(() => {
+      clearCellHighlights();
+      // reset pieces
+      entities.elephant.pos = null;
+      // next task
+      currentTask = makeTask();
+      taskTextEl.textContent = currentTask.textHU;
+      renderAll();
+      setStatus("neutral", "Húzd az elefántot egy mezőre.");
+      speakHU(currentTask.textHU);
+    }, delayMs);
+  }
+
   function startNewTask(){
-    clearCellHighlights();
-
-    // Ensure moving piece is in tray at start of each task
-    entities.elephant.pos = null;
-
-    currentTask = makeTask();
-    taskTextEl.textContent = currentTask.textHU;
-
-    // Hint highlight on the target cell (optional; easy to switch off later)
-    const t = currentTask.target;
-    cellEls[t.r][t.c].classList.add("hint");
-
-    renderAll();
-    setStatus("neutral", "Húzd az elefántot a megfelelő mezőre.");
-    speakHU(currentTask.textHU);
+    // Start immediately as a "reset + new task"
+    hardResetAndNextTask(0);
   }
 
   function repeatTaskAudio(){
@@ -518,9 +468,6 @@
     else if (currentTask) speakHU(currentTask.textHU);
   }
 
-  // ---------------------------
-  // Drag logic (pointer events)
-  // ---------------------------
   function onPointerDown(ev){
     ev.preventDefault();
 
@@ -530,18 +477,13 @@
 
     const el = ev.currentTarget;
 
-    // Record origin to restore if needed
-    const originParent = el.parentElement;
-    const originNextSibling = el.nextSibling;
-
     const rect = el.getBoundingClientRect();
     const offsetX = ev.clientX - rect.left;
     const offsetY = ev.clientY - rect.top;
 
-    dragging = { id, el, originParent, originNextSibling, offsetX, offsetY };
+    dragging = { id, el, offsetX, offsetY };
     el.classList.add("dragging");
 
-    // Move to body overlay for smooth dragging
     el.style.position = "fixed";
     el.style.left = (ev.clientX - offsetX) + "px";
     el.style.top  = (ev.clientY - offsetY) + "px";
@@ -558,20 +500,8 @@
     ev.preventDefault();
 
     const { el, offsetX, offsetY } = dragging;
-
     el.style.left = (ev.clientX - offsetX) + "px";
     el.style.top  = (ev.clientY - offsetY) + "px";
-
-    // Visual feedback: highlight cell under pointer
-    clearCellHighlights();
-    if (currentTask){
-      const t = currentTask.target;
-      cellEls[t.r][t.c].classList.add("hint");
-    }
-    const hit = cellAtPoint(ev.clientX, ev.clientY);
-    if (hit){
-      hit.el.classList.add("hint");
-    }
   }
 
   function restoreToTray(id){
@@ -592,86 +522,71 @@
 
     const { id, el } = dragging;
 
-    // Clean listeners
     el.classList.remove("dragging");
     el.releasePointerCapture?.(ev.pointerId);
     el.removeEventListener("pointermove", onPointerMove);
     el.removeEventListener("pointerup", onPointerUp);
     el.removeEventListener("pointercancel", onPointerUp);
 
-    // Determine drop target
     const hit = cellAtPoint(ev.clientX, ev.clientY);
 
+    // If dropped outside: treat as incorrect attempt and reset + next
     if (!hit){
-      // Dropped outside grid => back to tray
       restoreToTray(id);
       clearCellHighlights();
-      setStatus("neutral", "Tedd a rácsra egy mezőre.");
+      setStatus("bad", "Nem a rácsra tetted.");
+      speakHU("Nem a rácsra tetted.");
       dragging = null;
+      hardResetAndNextTask(800);
       return;
     }
 
     const { r, c } = hit;
 
-    // Disallow dropping onto occupied cells
-    // (Note: moving piece is currently "floating", so occupancy check is safe)
     if (isOccupied(r, c)){
       restoreToTray(id);
       clearCellHighlights();
       setStatus("bad", "Ez a mező foglalt.");
       speakHU("Ez a mező foglalt.");
       dragging = null;
+      hardResetAndNextTask(800);
       return;
     }
 
-    // Place
     placeOnCell(id, r, c);
 
-    // Validate task
     if (currentTask && id === currentTask.movingId){
       const t = currentTask.target;
       const correct = (r === t.r && c === t.c);
 
       clearCellHighlights();
+
       if (correct){
-        cellEls[r][c].classList.add("ok");
+        cellEls[r][c].classList.add("ok");  // optional visual feedback
         setStatus("ok", "Ügyes vagy!");
         speakHU("Ügyes vagy!");
-
-        // next task after short delay
-        setTimeout(() => {
-          startNewTask();
-        }, 900);
       } else {
-        cellEls[r][c].classList.add("bad");
+        cellEls[r][c].classList.add("bad"); // optional visual feedback
         setStatus("bad", "Nem jó helyre tetted.");
         speakHU("Nem jó helyre tetted.");
-        // allow child to move again; do not force reset
       }
+
+      // Always reset after any drop (correct or incorrect)
+      dragging = null;
+      hardResetAndNextTask(900);
+      return;
     }
 
     dragging = null;
+    hardResetAndNextTask(900);
   }
 
-  // ---------------------------
-  // Buttons
-  // ---------------------------
   btnNew.addEventListener("click", () => startNewTask());
   btnRepeat.addEventListener("click", () => repeatTaskAudio());
-  btnReset.addEventListener("click", () => {
-    entities.elephant.pos = null;
-    clearCellHighlights();
-    renderAll();
-    setStatus("neutral", "Visszatéve a tálcára.");
-  });
 
-  // ---------------------------
   // Init
-  // ---------------------------
   buildGrid();
-
-  // Put bunny somewhere initially; elephant on tray
-  entities.bunny.pos = { r: 4, c: 4 };
+  entities.bunny.pos = { r: 1, c: 1 };
   entities.elephant.pos = null;
   renderAll();
 
