@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Iranyok jatek - 9x9</title>
+  <style>
+    :root{
+      --gap: 6px;
+      --cell: 52px;
+      --radius: 12px;
+      --panel: 320px;
+      --bg: #0b1020;
+      --card: #131b34;
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --ok: rgba(92, 255, 156, .35);
+      --bad: rgba(255, 92, 92, .35);
+      --hint: rgba(106, 170, 255, .28);
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app{
+      min-height: 100vh;
+      display:flex;
+      flex-direction: column;
+      padding: 14px;
+      gap: 12px;
+    }
+
+    .topbar{
+      display:flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px 12px;
+    }
+
+    .title{
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+
+    .task{
+      display:flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 280px;
+      flex: 1;
+    }
+
+    .task strong{
+      font-size: 16px;
+    }
+    .task small{
+      color: var(--muted);
+      line-height: 1.2;
+    }
+
+    .controls{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 650;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    button:active{
+      transform: translateY(1px);
+    }
+
+    .main{
+      display:flex;
+      gap: 12px;
+      flex: 1;
+      align-items: stretch;
+    }
+
+    .boardCard, .trayCard{
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .boardCard{
+      flex: 1;
+      display:flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .trayCard{
+      width: min(var(--panel), 92vw);
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .trayTitle{
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .layoutHint{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.25;
+    }
+
+    /* Responsive: tray goes below on narrow screens */
+    @media (max-width: 860px){
+      .main{
+        flex-direction: column;
+      }
+      .trayCard{
+        width: 100%;
+      }
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(9, var(--cell));
+      grid-template-rows: repeat(9, var(--cell));
+      gap: var(--gap);
+      padding: var(--gap);
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.16);
+      touch-action: none; /* critical for pointer-drag on tablets */
+      user-select: none;
+      position: relative;
+    }
+
+    .cell{
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      position: relative;
+    }
+    .cell.hint{ outline: 3px solid var(--hint); }
+    .cell.ok{ outline: 3px solid var(--ok); }
+    .cell.bad{ outline: 3px solid var(--bad); }
+
+    .piece{
+      width: calc(var(--cell) - 8px);
+      height: calc(var(--cell) - 8px);
+      border-radius: 12px;
+      display:flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 10px 22px rgba(0,0,0,.32);
+      position: absolute;
+      left: 4px;
+      top: 4px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .piece.fixed{
+      background: rgba(255,255,255,.08);
+      box-shadow: none;
+      border-style: dashed;
+      opacity: .95;
+    }
+
+    .piece.dragging{
+      transform: scale(1.06);
+      z-index: 999;
+    }
+
+    .tray{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 6px 2px 2px 2px;
+      min-height: 90px;
+      border-radius: 14px;
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(0,0,0,.12);
+      position: relative;
+    }
+
+    .traySlot{
+      width: 74px;
+      height: 74px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      display:flex;
+      align-items: center;
+      justify-content:center;
+      position: relative;
+    }
+
+    .traySlot .piece{
+      position: static;
+      width: 62px;
+      height: 62px;
+      font-size: 32px;
+    }
+
+    .status{
+      font-weight: 700;
+      min-height: 22px;
+    }
+    .status.ok{ color: rgba(160,255,200,.95); }
+    .status.bad{ color: rgba(255,160,160,.95); }
+    .status.neutral{ color: var(--muted); }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="task">
+        <div class="title">Irányok gyakorlása (9×9)</div>
+        <strong id="taskText">Nyomd meg az “Új feladat” gombot.</strong>
+        <small id="taskSub">A hang lejátszásához az első interakció után a böngésző engedélyezi a beszédet.</small>
+      </div>
+      <div class="controls">
+        <button id="btnNew">Új feladat</button>
+        <button id="btnRepeat">Ismételd a hangot</button>
+        <button id="btnReset">Vissza a tálcára</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="boardCard">
+        <div id="grid" class="grid" aria-label="9x9 rács"></div>
+      </div>
+
+      <div class="trayCard">
+        <div class="trayTitle">Tálca (húzd a rácsra)</div>
+        <div class="layoutHint">
+          Húzd az állatot a rács megfelelő mezőjére. Ha jó helyre teszed, jön a “Ügyes vagy”. Ha nem, “Nem jó helyre tetted”.
+        </div>
+        <div id="tray" class="tray"></div>
+        <div id="status" class="status neutral">Készen áll.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ---------------------------
+  // Config
+  // ---------------------------
+  const GRID_N = 9;
+
+  // Entities: later you can add more animals here.
+  const entities = {
+    bunny:    { id: "bunny",    nameHU: "nyuszi",   emoji: "🐰", fixed: true,  pos: null },
+    elephant: { id: "elephant", nameHU: "elefánt",  emoji: "🐘", fixed: false, pos: null }
+  };
+
+  // Relations and Hungarian phrasing
+  const relations = {
+    above: { dx: 0, dy: -1, hu: "fölé" },
+    below: { dx: 0, dy:  1, hu: "alá" },
+    left:  { dx: -1, dy: 0, hu: "balra" },
+    right: { dx:  1, dy: 0, hu: "jobbra" }
+  };
+
+  // ---------------------------
+  // DOM
+  // ---------------------------
+  const gridEl = document.getElementById("grid");
+  const trayEl = document.getElementById("tray");
+  const taskTextEl = document.getElementById("taskText");
+  const statusEl = document.getElementById("status");
+  const btnNew = document.getElementById("btnNew");
+  const btnRepeat = document.getElementById("btnRepeat");
+  const btnReset = document.getElementById("btnReset");
+
+  // ---------------------------
+  // State
+  // ---------------------------
+  let cellEls = []; // [row][col]
+  let currentTask = null; // {movingId, refId, relKey, target:{r,c}, textHU}
+  let lastSpokenText = "";
+
+  // Drag state
+  let dragging = null; // { id, el, originParent, originNextSibling, startX, startY, offsetX, offsetY }
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function setStatus(type, text){
+    statusEl.classList.remove("ok","bad","neutral");
+    statusEl.classList.add(type);
+    statusEl.textContent = text;
+  }
+
+  function clearCellHighlights(){
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        cellEls[r][c].classList.remove("hint","ok","bad");
+      }
+    }
+  }
+
+  function cellAtPoint(clientX, clientY){
+    // find which cell rect contains point
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const el = cellEls[r][c];
+        const rect = el.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom){
+          return { r, c, el };
+        }
+      }
+    }
+    return null;
+  }
+
+  function isOccupied(r, c){
+    for (const k of Object.keys(entities)){
+      const e = entities[k];
+      if (e.pos && e.pos.r === r && e.pos.c === c) return true;
+    }
+    return false;
+  }
+
+  function getEntityById(id){
+    return Object.values(entities).find(e => e.id === id);
+  }
+
+  // Hungarian TTS (speechSynthesis)
+  function speakHU(text){
+    lastSpokenText = text;
+
+    if (!("speechSynthesis" in window)) return;
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "hu-HU";
+    u.rate = 0.95;
+    u.pitch = 1.0;
+
+    // Pick a Hungarian voice if available (best effort)
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    const huVoice = voices.find(v => (v.lang || "").toLowerCase().startsWith("hu"));
+    if (huVoice) u.voice = huVoice;
+
+    window.speechSynthesis.speak(u);
+  }
+
+  // Some browsers load voices async
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      // no-op; this ensures voices list becomes available after first load
+    };
+  }
+
+  // ---------------------------
+  // Rendering
+  // ---------------------------
+  function buildGrid(){
+    gridEl.innerHTML = "";
+    cellEls = Array.from({length: GRID_N}, () => Array.from({length: GRID_N}, () => null));
+
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.r = String(r);
+        cell.dataset.c = String(c);
+        gridEl.appendChild(cell);
+        cellEls[r][c] = cell;
+      }
+    }
+  }
+
+  function createPieceElement(entity){
+    const el = document.createElement("div");
+    el.className = "piece" + (entity.fixed ? " fixed" : "");
+    el.dataset.id = entity.id;
+    el.textContent = entity.emoji;
+    el.setAttribute("role","img");
+    el.setAttribute("aria-label", entity.nameHU);
+
+    if (!entity.fixed){
+      // Pointer-based drag
+      el.addEventListener("pointerdown", onPointerDown, {passive:false});
+    }
+    return el;
+  }
+
+  function renderAll(){
+    // Clear pieces from grid cells
+    for (let r=0; r<GRID_N; r++){
+      for (let c=0; c<GRID_N; c++){
+        const cell = cellEls[r][c];
+        // remove existing pieces
+        [...cell.querySelectorAll(".piece")].forEach(p => p.remove());
+      }
+    }
+
+    // Render fixed pieces (like bunny) into cells
+    for (const e of Object.values(entities)){
+      if (e.pos){
+        const cell = cellEls[e.pos.r][e.pos.c];
+        const piece = createPieceElement(e);
+        cell.appendChild(piece);
+      }
+    }
+
+    // Render tray: only non-fixed entities that are not placed on grid
+    trayEl.innerHTML = "";
+    for (const e of Object.values(entities)){
+      if (!e.fixed && !e.pos){
+        const slot = document.createElement("div");
+        slot.className = "traySlot";
+        const piece = createPieceElement(e);
+        slot.appendChild(piece);
+        trayEl.appendChild(slot);
+      }
+    }
+  }
+
+  // ---------------------------
+  // Task generation
+  // ---------------------------
+  function randomInt(a, b){ // inclusive
+    return Math.floor(Math.random() * (b - a + 1)) + a;
+  }
+
+  function chooseRandomRelationKey(){
+    const keys = Object.keys(relations);
+    return keys[randomInt(0, keys.length - 1)];
+  }
+
+  function placeReferenceSoTargetFits(relKey){
+    const rel = relations[relKey];
+    // choose reference position so ref + delta is inside grid
+    const minR = clamp(0 - rel.dy, 0, GRID_N-1);
+    const maxR = clamp((GRID_N-1) - rel.dy, 0, GRID_N-1);
+    const minC = clamp(0 - rel.dx, 0, GRID_N-1);
+    const maxC = clamp((GRID_N-1) - rel.dx, 0, GRID_N-1);
+
+    const r = randomInt(minR, maxR);
+    const c = randomInt(minC, maxC);
+    entities.bunny.pos = { r, c };
+  }
+
+  function makeTask(){
+    const movingId = "elephant";
+    const refId = "bunny";
+    const relKey = chooseRandomRelationKey();
+    placeReferenceSoTargetFits(relKey);
+
+    const refPos = entities[refId].pos;
+    const rel = relations[relKey];
+    const target = { r: refPos.r + rel.dy, c: refPos.c + rel.dx };
+
+    const moving = entities[movingId];
+    const ref = entities[refId];
+
+    const text = `Tedd az ${moving.nameHU}ot a ${ref.nameHU} ${rel.hu}.`;
+
+    return { movingId, refId, relKey, target, textHU: text };
+  }
+
+  function startNewTask(){
+    clearCellHighlights();
+
+    // Ensure moving piece is in tray at start of each task
+    entities.elephant.pos = null;
+
+    currentTask = makeTask();
+    taskTextEl.textContent = currentTask.textHU;
+
+    // Hint highlight on the target cell (optional; easy to switch off later)
+    const t = currentTask.target;
+    cellEls[t.r][t.c].classList.add("hint");
+
+    renderAll();
+    setStatus("neutral", "Húzd az elefántot a megfelelő mezőre.");
+    speakHU(currentTask.textHU);
+  }
+
+  function repeatTaskAudio(){
+    if (lastSpokenText) speakHU(lastSpokenText);
+    else if (currentTask) speakHU(currentTask.textHU);
+  }
+
+  // ---------------------------
+  // Drag logic (pointer events)
+  // ---------------------------
+  function onPointerDown(ev){
+    ev.preventDefault();
+
+    const id = ev.currentTarget.dataset.id;
+    const entity = getEntityById(id);
+    if (!entity || entity.fixed) return;
+
+    const el = ev.currentTarget;
+
+    // Record origin to restore if needed
+    const originParent = el.parentElement;
+    const originNextSibling = el.nextSibling;
+
+    const rect = el.getBoundingClientRect();
+    const offsetX = ev.clientX - rect.left;
+    const offsetY = ev.clientY - rect.top;
+
+    dragging = { id, el, originParent, originNextSibling, offsetX, offsetY };
+    el.classList.add("dragging");
+
+    // Move to body overlay for smooth dragging
+    el.style.position = "fixed";
+    el.style.left = (ev.clientX - offsetX) + "px";
+    el.style.top  = (ev.clientY - offsetY) + "px";
+    document.body.appendChild(el);
+
+    el.setPointerCapture(ev.pointerId);
+    el.addEventListener("pointermove", onPointerMove, {passive:false});
+    el.addEventListener("pointerup", onPointerUp, {passive:false});
+    el.addEventListener("pointercancel", onPointerUp, {passive:false});
+  }
+
+  function onPointerMove(ev){
+    if (!dragging) return;
+    ev.preventDefault();
+
+    const { el, offsetX, offsetY } = dragging;
+
+    el.style.left = (ev.clientX - offsetX) + "px";
+    el.style.top  = (ev.clientY - offsetY) + "px";
+
+    // Visual feedback: highlight cell under pointer
+    clearCellHighlights();
+    if (currentTask){
+      const t = currentTask.target;
+      cellEls[t.r][t.c].classList.add("hint");
+    }
+    const hit = cellAtPoint(ev.clientX, ev.clientY);
+    if (hit){
+      hit.el.classList.add("hint");
+    }
+  }
+
+  function restoreToTray(id){
+    const entity = getEntityById(id);
+    entity.pos = null;
+    renderAll();
+  }
+
+  function placeOnCell(id, r, c){
+    const entity = getEntityById(id);
+    entity.pos = { r, c };
+    renderAll();
+  }
+
+  function onPointerUp(ev){
+    if (!dragging) return;
+    ev.preventDefault();
+
+    const { id, el } = dragging;
+
+    // Clean listeners
+    el.classList.remove("dragging");
+    el.releasePointerCapture?.(ev.pointerId);
+    el.removeEventListener("pointermove", onPointerMove);
+    el.removeEventListener("pointerup", onPointerUp);
+    el.removeEventListener("pointercancel", onPointerUp);
+
+    // Determine drop target
+    const hit = cellAtPoint(ev.clientX, ev.clientY);
+
+    if (!hit){
+      // Dropped outside grid => back to tray
+      restoreToTray(id);
+      clearCellHighlights();
+      setStatus("neutral", "Tedd a rácsra egy mezőre.");
+      dragging = null;
+      return;
+    }
+
+    const { r, c } = hit;
+
+    // Disallow dropping onto occupied cells
+    // (Note: moving piece is currently "floating", so occupancy check is safe)
+    if (isOccupied(r, c)){
+      restoreToTray(id);
+      clearCellHighlights();
+      setStatus("bad", "Ez a mező foglalt.");
+      speakHU("Ez a mező foglalt.");
+      dragging = null;
+      return;
+    }
+
+    // Place
+    placeOnCell(id, r, c);
+
+    // Validate task
+    if (currentTask && id === currentTask.movingId){
+      const t = currentTask.target;
+      const correct = (r === t.r && c === t.c);
+
+      clearCellHighlights();
+      if (correct){
+        cellEls[r][c].classList.add("ok");
+        setStatus("ok", "Ügyes vagy!");
+        speakHU("Ügyes vagy!");
+
+        // next task after short delay
+        setTimeout(() => {
+          startNewTask();
+        }, 900);
+      } else {
+        cellEls[r][c].classList.add("bad");
+        setStatus("bad", "Nem jó helyre tetted.");
+        speakHU("Nem jó helyre tetted.");
+        // allow child to move again; do not force reset
+      }
+    }
+
+    dragging = null;
+  }
+
+  // ---------------------------
+  // Buttons
+  // ---------------------------
+  btnNew.addEventListener("click", () => startNewTask());
+  btnRepeat.addEventListener("click", () => repeatTaskAudio());
+  btnReset.addEventListener("click", () => {
+    entities.elephant.pos = null;
+    clearCellHighlights();
+    renderAll();
+    setStatus("neutral", "Visszatéve a tálcára.");
+  });
+
+  // ---------------------------
+  // Init
+  // ---------------------------
+  buildGrid();
+
+  // Put bunny somewhere initially; elephant on tray
+  entities.bunny.pos = { r: 4, c: 4 };
+  entities.elephant.pos = null;
+  renderAll();
+
+})();
+</script>
+</body>
+</html>
