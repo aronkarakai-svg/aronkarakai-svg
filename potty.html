@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Körválasztós játék (3–6 kör)</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --ok: rgba(92,255,156,.35);
+      --bad: rgba(255,92,92,.35);
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app{
+      min-height: 100vh;
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      align-items: center;
+    }
+
+    .topbar{
+      width: min(820px, 96vw);
+      display:flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .task{
+      display:flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 260px;
+      flex: 1;
+    }
+    .task .title{ font-weight: 800; letter-spacing: .2px; }
+    .task strong{ font-size: 16px; }
+    .task small{ color: var(--muted); line-height: 1.2; }
+
+    .controls{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    button:active{ transform: translateY(1px); }
+
+    .card{
+      width: min(820px, 96vw);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .rowWrap{
+      display:flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 220px;
+    }
+
+    .row{
+      display:flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 18px;
+      padding: 18px 10px;
+      border-radius: 14px;
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(0,0,0,.12);
+      width: 100%;
+    }
+
+    .dot{
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.18);
+      box-shadow: 0 12px 28px rgba(0,0,0,.35);
+      display:flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      touch-action: none; /* pointer taps */
+      cursor: pointer;
+      position: relative;
+      transform: translateZ(0);
+    }
+
+    .dot:active{
+      transform: scale(0.98);
+    }
+
+    .dot.ok{
+      outline: 6px solid var(--ok);
+      outline-offset: 3px;
+    }
+    .dot.bad{
+      outline: 6px solid var(--bad);
+      outline-offset: 3px;
+    }
+
+    .legend{
+      margin-top: 10px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 700;
+      min-height: 22px;
+    }
+    .legend.ok{ color: rgba(160,255,200,.95); }
+    .legend.bad{ color: rgba(255,160,160,.95); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="task">
+        <div class="title">Körválasztós játék (3–6 kör)</div>
+        <strong id="taskText">Nyomd meg az “Új feladat” gombot.</strong>
+        <small>Hang alapú játék: koppints a megfelelő körre.</small>
+      </div>
+      <div class="controls">
+        <button id="btnNew">Új feladat</button>
+        <button id="btnRepeat">Ismételd a hangot</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="rowWrap">
+        <div id="row" class="row" aria-label="Körök sora"></div>
+      </div>
+      <div id="status" class="legend">Készen áll.</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const rowEl = document.getElementById("row");
+  const taskTextEl = document.getElementById("taskText");
+  const statusEl = document.getElementById("status");
+  const btnNew = document.getElementById("btnNew");
+  const btnRepeat = document.getElementById("btnRepeat");
+
+  const colorPool = [
+    { key:"piros",   css:"#e53935" },
+    { key:"zöld",    css:"#43a047" },
+    { key:"kék",     css:"#1e88e5" },
+    { key:"sárga",   css:"#fdd835" },
+    { key:"lila",    css:"#8e24aa" },
+    { key:"narancs", css:"#fb8c00" }
+  ];
+
+  // Méretek: kicsi -> nagy (szándékosan nagy különbség, hogy tablet-en is jól látszódjon)
+  const sizePool = [52, 68, 86, 106, 124]; // px átmérők
+
+  let dots = [];      // [{id, colorKey, colorCss, size}]
+  let task = null;    // { type, textHU, answerId }
+  let lastSpokenText = "";
+  let locked = false;
+
+  function setStatus(type, text){
+    statusEl.classList.remove("ok","bad");
+    if (type) statusEl.classList.add(type);
+    statusEl.textContent = text;
+  }
+
+  function speakHU(text){
+    lastSpokenText = text;
+    if (!("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "hu-HU";
+    u.rate = 0.95;
+    u.pitch = 1.0;
+
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    const huVoice = voices.find(v => (v.lang || "").toLowerCase().startsWith("hu"));
+    if (huVoice) u.voice = huVoice;
+
+    window.speechSynthesis.speak(u);
+  }
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = () => {};
+  }
+
+  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+  function pickRandom(arr){ return arr[randInt(0, arr.length-1)]; }
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for (let i=a.length-1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function buildDots(){
+    const n = randInt(3, 6);
+
+    // Színek: engedünk ismétlődést, de próbáljuk változatosan
+    const colors = shuffle(colorPool).concat(shuffle(colorPool));
+
+    // Méretek: n darabot választunk úgy, hogy jól eltérjenek (egyedi méret preferált)
+    const sizes = shuffle(sizePool).slice(0, n);
+
+    dots = [];
+    for (let i=0; i<n; i++){
+      const col = colors[i];
+      dots.push({
+        id: "d" + i,
+        idx: i,
+        colorKey: col.key,
+        colorCss: col.css,
+        size: sizes[i]
+      });
+    }
+  }
+
+  function renderDots(){
+    rowEl.innerHTML = "";
+    for (const d of dots){
+      const el = document.createElement("div");
+      el.className = "dot";
+      el.dataset.id = d.id;
+      el.style.width = d.size + "px";
+      el.style.height = d.size + "px";
+      el.style.background = d.colorCss;
+
+      // tap handling
+      el.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        if (locked || !task) return;
+        handlePick(d.id);
+      }, {passive:false});
+
+      rowEl.appendChild(el);
+    }
+  }
+
+  function clearMarks(){
+    rowEl.querySelectorAll(".dot").forEach(el => el.classList.remove("ok","bad"));
+  }
+
+  function markDot(id, cls){
+    const el = rowEl.querySelector(`.dot[data-id="${id}"]`);
+    if (el) el.classList.add(cls);
+  }
+
+  function nthTextHU(n){ // 1..6
+    const map = {1:"elsőt",2:"másodikat",3:"harmadikat",4:"negyediket",5:"ötödiket",6:"hatodikat"};
+    return map[n] || (n + ".-at");
+  }
+
+  function makeTask(){
+    const n = dots.length;
+    const kinds = [];
+
+    // Pozíciós feladatok
+    kinds.push("leftmost", "rightmost");
+    if (n % 2 === 1) kinds.push("middle");
+
+    // Balról/jobbról n-edik (csak ha értelmes)
+    if (n >= 4) kinds.push("fromLeftN", "fromRightN");
+    else kinds.push("fromLeftN"); // 3-nál is van értelme
+
+    // Szín
+    kinds.push("color");
+
+    // Méret
+    kinds.push("largest", "smallest");
+
+    const type = pickRandom(kinds);
+
+    if (type === "leftmost"){
+      const ans = dots[0];
+      return { type, answerId: ans.id, textHU: "Válaszd ki a bal oldalit." };
+    }
+    if (type === "rightmost"){
+      const ans = dots[n-1];
+      return { type, answerId: ans.id, textHU: "Válaszd ki a jobb oldalit." };
+    }
+    if (type === "middle"){
+      const ans = dots[(n-1)/2];
+      return { type, answerId: ans.id, textHU: "Válaszd ki a középsőt." };
+    }
+    if (type === "fromLeftN"){
+      const k = randInt(1, n);
+      const ans = dots[k-1];
+      return { type, answerId: ans.id, textHU: `Válaszd ki a balról a ${nthTextHU(k)}.` };
+    }
+    if (type === "fromRightN"){
+      const k = randInt(1, n);
+      const ans = dots[n-k];
+      return { type, answerId: ans.id, textHU: `Válaszd ki a jobbról a ${nthTextHU(k)}.` };
+    }
+    if (type === "color"){
+      // válasszunk egy olyan színt, ami biztosan jelen van
+      const ans = pickRandom(dots);
+      return { type, answerId: ans.id, textHU: `Válaszd ki a ${ans.colorKey}at.`.replace("a a","az a") };
+      // Megjegyzés: itt egyszerűsítünk, a névelő finomítás nem kritikus TTS-hez.
+    }
+    if (type === "largest"){
+      const ans = dots.slice().sort((a,b)=>b.size-a.size)[0];
+      return { type, answerId: ans.id, textHU: "Válaszd ki a legnagyobbat." };
+    }
+    if (type === "smallest"){
+      const ans = dots.slice().sort((a,b)=>a.size-b.size)[0];
+      return { type, answerId: ans.id, textHU: "Válaszd ki a legkisebbet." };
+    }
+
+    // fallback
+    const ans = dots[0];
+    return { type:"leftmost", answerId: ans.id, textHU: "Válaszd ki a bal oldalit." };
+  }
+
+  function startNew(){
+    locked = false;
+    clearMarks();
+    setStatus("", "Készen áll.");
+
+    buildDots();
+    renderDots();
+
+    task = makeTask();
+    taskTextEl.textContent = task.textHU;
+    setStatus("", "Koppints a megfelelő körre.");
+    speakHU(task.textHU);
+  }
+
+  function handlePick(pickedId){
+    locked = true;
+    clearMarks();
+
+    const correct = pickedId === task.answerId;
+
+    if (correct){
+      markDot(pickedId, "ok");
+      setStatus("ok", "Ügyes vagy!");
+      speakHU("Ügyes vagy!");
+    } else {
+      markDot(pickedId, "bad");
+      setStatus("bad", "Nem jó.");
+      speakHU("Nem jó.");
+    }
+
+    // új feladat automatikusan
+    setTimeout(() => {
+      startNew();
+    }, 900);
+  }
+
+  btnNew.addEventListener("click", () => startNew());
+  btnRepeat.addEventListener("click", () => {
+    if (lastSpokenText) speakHU(lastSpokenText);
+    else if (task) speakHU(task.textHU);
+  });
+
+  setStatus("", "Nyomd meg az “Új feladat” gombot.");
+})();
+</script>
+</body>
+</html>
