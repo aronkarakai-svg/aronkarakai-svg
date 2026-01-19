@@ -338,4 +338,296 @@
   }
 
   function speakOpponentIntro(opp){
-    const txt = `Az ellenfeled ${opp.name}. ${opp.group}.
+    const txt = `Az ellenfeled ${opp.name}. ${opp.group}. Sok mérkőzést nyert már meg, le akar győzni téged.`;
+    setHeader(`Az ellenfeled: ${opp.name} (${opp.group})`);
+    setPrompt(txt);
+    TTS.say(txt);
+  }
+
+  async function startMatch(){
+    state.phase = "intro";
+    resetMatch();
+    state.champ.matchIndex += 1;
+    state.match.opponent = pickOpponent();
+    updateHud();
+
+    speakOpponentIntro(state.match.opponent);
+
+    const t = setTimeout(() => startCountdown(), 1200);
+    state.round.timers.push(t);
+  }
+
+  function startCountdown(){
+    state.phase = "countdown";
+    countdown.textContent = "";
+    clearLetters();
+    setStatus("", "Figyelj!");
+    updateHud();
+
+    const seq = ["3","2","1"];
+    let i = 0;
+
+    const tick = () => {
+      if (i >= seq.length){
+        countdown.textContent = "";
+        startRound();
+        return;
+      }
+      countdown.textContent = seq[i];
+      TTS.say(seq[i]);
+      i++;
+      state.round.timers.push(setTimeout(tick, 650));
+    };
+
+    tick();
+  }
+
+  function buildRoundLetters(){
+    return shuffle(LETTER_BANK).slice(0, 5);
+  }
+
+  async function startRound(){
+    clearTimers();
+    state.phase = "playing";
+    state.match.roundIndex += 1;
+
+    state.round.letters = buildRoundLetters();
+    state.round.targetLetter = pickRandom(state.round.letters).letter;
+
+    renderLetters(state.round.letters);
+
+    const taskTxt = `Válaszd ki az ${state.round.targetLetter} betűt.`;
+    setHeader(`Kör ${state.match.roundIndex} / ${MATCH_ROUNDS}`);
+    setPrompt(taskTxt);
+    setStatus("", "Hallgasd meg a feladatot, utána indul az idő!");
+    updateHud();
+
+    // input tiltás, amíg beszél
+    state.round.canPick = false;
+    state.round.startedAt = 0;
+    state.round.childPick = null;
+    state.round.opponentPick = null;
+
+    // A lényeg: csak a feladatmondat BEFEJEZÉSE után indul a számláló (6 mp) és az AI döntés
+    await TTS.sayAsync(taskTxt);
+
+    // Ha közben valamiért kiléptünk a körből (ritka), ne induljunk el
+    if (state.phase !== "playing") return;
+
+    beginTimingAfterSpeech();
+  }
+
+  function beginTimingAfterSpeech(){
+    state.round.canPick = true;
+    state.round.startedAt = performance.now();
+
+    setStatus("", "Most válassz! (6 mp)");
+    updateHud();
+
+    // Gyerek időlimit: 6s
+    const childDeadline = setTimeout(() => {
+      if (state.phase === "playing"){
+        setStatus("", "Lejárt az idő!");
+      }
+    }, CHILD_TIME_LIMIT_MS);
+    state.round.timers.push(childDeadline);
+
+    // Ellenfél döntése a beszéd UTÁN számítva
+    const oppDecision = setTimeout(() => {
+      if (state.phase !== "playing") return;
+      makeOpponentPickAndResolve();
+    }, Math.max(LIMITS.minReaction, state.ai.reactionSeconds) * 1000);
+    state.round.timers.push(oppDecision);
+
+    // Biztonsági zárás 6.2s körül
+    const hardEnd = setTimeout(() => {
+      if (state.phase === "playing"){
+        makeOpponentPickAndResolve(true);
+      }
+    }, CHILD_TIME_LIMIT_MS + 200);
+    state.round.timers.push(hardEnd);
+  }
+
+  function onChildPick(letter){
+    if (state.phase !== "playing") return;
+    if (!state.round.canPick) return; // amíg beszél, ne lehessen klikkelni
+
+    const now = performance.now();
+    const timeMs = now - state.round.startedAt;
+    const correct = (letter === state.round.targetLetter);
+
+    if (state.round.childPick) return;
+    state.round.childPick = { letter, timeMs, correct };
+
+    if (correct){
+      resolveRound("you", `Te nyertél!`);
+      return;
+    }
+
+    setStatus("bad", "Nem jó. Próbáld újra gyorsan!");
+    TTS.say("Nem jó.");
+    // Itt szándékosan NEM zárjuk le a kört rossz kattintásra,
+    // mert 6 mp alatt javíthat (első helyes találat zár).
+    // Ha azt akarod, hogy csak az első kattintás számítson, szólj és átállítom.
+    state.round.childPick = null; // engedjük a további próbát a 6 mp-en belül
+  }
+
+  function makeOpponentPickAndResolve(force = false){
+    if (state.phase !== "playing") return;
+    if (state.round.opponentPick) return;
+
+    const now = performance.now();
+    const timeMs = state.round.startedAt ? (now - state.round.startedAt) : 0;
+
+    const willBeCorrect = Math.random() < state.ai.accuracy;
+
+    let chosenLetter;
+    if (willBeCorrect){
+      chosenLetter = state.round.targetLetter;
+    } else {
+      const others = state.round.letters.map(x => x.letter).filter(x => x !== state.round.targetLetter);
+      chosenLetter = pickRandom(others);
+    }
+
+    state.round.opponentPick = { letter: chosenLetter, timeMs, correct: willBeCorrect };
+
+    // Ha a gyerek időközben már nyert volna, az resolveRound lezárta a kört.
+    const oppName = state.match.opponent.name;
+    resolveRound("opp", `${oppName} nyert!`);
+  }
+
+  function resolveRound(winner, announceText){
+    if (state.phase !== "playing") return;
+
+    state.phase = "roundResult";
+    clearTimers();
+    state.round.canPick = false;
+
+    if (winner === "you"){
+      state.match.youPoints += 1;
+      setStatus("ok", "Te nyertél!");
+      TTS.say("Te nyertél.");
+    } else {
+      state.match.oppPoints += 1;
+      const oppName = state.match.opponent.name;
+      setStatus("bad", `${oppName} nyert!`);
+      TTS.say(`${oppName} nyert.`);
+    }
+
+    updateHud();
+
+    const t = setTimeout(() => {
+      if (state.match.roundIndex >= MATCH_ROUNDS){
+        endMatch();
+      } else {
+        startCountdown();
+      }
+    }, 850);
+    state.round.timers.push(t);
+  }
+
+  function endMatch(){
+    state.phase = "matchEnd";
+    clearTimers();
+    clearLetters();
+    countdown.textContent = "";
+
+    const oppName = state.match.opponent.name;
+
+    if (state.match.youPoints > state.match.oppPoints){
+      state.champ.youMatchWins += 1;
+      setHeader("Mérkőzés vége");
+      setPrompt("Gratulálok, ezt te nyerted!");
+      setStatus("ok", "Gratulálok, ezt te nyerted!");
+      TTS.say("Gratulálok, ezt te nyerted!");
+
+      state.level += 1;
+      state.ai.reactionSeconds = Math.max(LIMITS.minReaction, state.ai.reactionSeconds + AI_STEP.reactionDelta);
+      state.ai.accuracy = Math.min(LIMITS.maxAccuracy, state.ai.accuracy + AI_STEP.accuracyDelta);
+    } else {
+      state.champ.oppMatchWins += 1;
+      setHeader("Mérkőzés vége");
+      setPrompt(`Most az ellenfeled nyert: ${oppName}.`);
+      setStatus("bad", `Most az ellenfeled nyert: ${oppName}.`);
+      TTS.say(`Most az ellenfeled nyert: ${oppName}.`);
+    }
+
+    updateHud();
+
+    const t = setTimeout(() => {
+      if (state.champ.matchIndex >= CHAMP_MATCHES){
+        endChampionship();
+      } else {
+        state.phase = "idle";
+        state.match.opponent = null;
+        resetMatch();
+        setHeader("Koppints a ✅ gombra a következő mérkőzéshez.");
+        setPrompt("Ha készen állsz, indítsd a következő mérkőzést.");
+        setStatus("", "Készen áll.");
+        updateHud();
+      }
+    }, 1200);
+    state.round.timers.push(t);
+  }
+
+  function endChampionship(){
+    state.phase = "champEnd";
+    clearTimers();
+    clearLetters();
+    countdown.textContent = "";
+
+    const youWonAll = (state.champ.youMatchWins === CHAMP_MATCHES);
+
+    if (youWonAll){
+      setHeader("Bajnokság vége");
+      setPrompt("Te vagy a bajnok!");
+      setStatus("ok", "Te vagy a bajnok!");
+      TTS.say("Te vagy a bajnok!");
+    } else {
+      setHeader("Bajnokság vége");
+      setPrompt("Nem baj, majd legközelebb.");
+      setStatus("", "Nem baj, majd legközelebb.");
+      TTS.say("Nem baj, majd legközelebb.");
+    }
+
+    updateHud();
+
+    const t = setTimeout(() => {
+      state.phase = "idle";
+      setHeader("Koppints a ✅ gombra, ha új bajnokságot szeretnél.");
+      setPrompt("Új bajnoksághoz koppints a ✅ gombra.");
+      setStatus("", "Készen áll.");
+    }, 1200);
+    state.round.timers.push(t);
+  }
+
+  // -----------------------------
+  // Események
+  // -----------------------------
+  btnReady.addEventListener("click", () => {
+    if (state.phase === "playing" || state.phase === "countdown" || state.phase === "intro" || state.phase === "roundResult" || state.phase === "matchEnd") return;
+
+    if (state.phase === "champEnd"){
+      resetChamp();
+    }
+
+    if (state.phase === "idle"){
+      if (state.champ.matchIndex === 0){
+        state.champ.youMatchWins = 0;
+        state.champ.oppMatchWins = 0;
+      }
+      startMatch();
+    }
+  });
+
+  btnRepeat.addEventListener("click", () => TTS.repeat());
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) TTS.hardStop();
+  });
+
+  // -----------------------------
+  // Init
+  // -----------------------------
+  resetChamp();
+})();
