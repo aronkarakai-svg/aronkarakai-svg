@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ABC Bajnokság</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --ok: rgba(92,255,156,.35);
+      --bad: rgba(255,92,92,.35);
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app{
+      min-height: 100vh;
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      align-items: center;
+    }
+
+    .topbar{
+      width: min(980px, 96vw);
+      display:flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .title{
+      font-weight: 900;
+      letter-spacing: .2px;
+      font-size: 18px;
+    }
+
+    .sub{
+      color: var(--muted);
+      font-weight: 700;
+      margin-top: 4px;
+      line-height: 1.2;
+    }
+
+    .controls{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+      white-space: nowrap;
+    }
+    button:active{ transform: translateY(1px); }
+
+    .card{
+      width: min(980px, 96vw);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .row{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pill{
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.12);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .bigText{
+      font-size: 18px;
+      font-weight: 900;
+      margin: 6px 0 0 0;
+    }
+
+    .status{
+      margin-top: 10px;
+      font-weight: 900;
+      min-height: 24px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .status.ok{ color: rgba(160,255,200,.95); }
+    .status.bad{ color: rgba(255,160,160,.95); }
+
+    .arena{
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 0;
+    }
+
+    .letters{
+      display:flex;
+      flex-wrap: nowrap;
+      gap: 14px;
+      justify-content: center;
+      align-items: flex-end;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .letterBtn{
+      width: 128px;
+      height: 150px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(0,0,0,.12);
+      display:flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      user-select: none;
+      touch-action: manipulation;
+      cursor: pointer;
+      position: relative;
+    }
+    .letterBtn:active{ transform: scale(0.99); }
+
+    .emoji{
+      font-size: 34px;
+      line-height: 1;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,.35));
+    }
+
+    .letter{
+      font-size: 44px;
+      font-weight: 1000;
+      letter-spacing: 1px;
+    }
+
+    .countdown{
+      font-size: 44px;
+      font-weight: 1000;
+      text-align:center;
+      padding: 6px 0;
+      min-height: 56px;
+    }
+
+    .hint{
+      color: var(--muted);
+      font-weight: 800;
+      text-align:center;
+      line-height: 1.25;
+    }
+
+    .score{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .scoreBox{
+      flex: 0 0 auto;
+      min-width: 220px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.10);
+      padding: 10px 12px;
+    }
+
+    .scoreBox .name{
+      font-weight: 1000;
+      margin-bottom: 4px;
+    }
+    .scoreBox .meta{
+      color: var(--muted);
+      font-weight: 800;
+      line-height: 1.2;
+      font-size: 13px;
+    }
+    .scoreBox .points{
+      font-size: 34px;
+      font-weight: 1000;
+      margin-top: 6px;
+    }
+
+    @media (max-width: 760px){
+      .letterBtn{ width: 112px; height: 144px; }
+      .letter{ font-size: 40px; }
+    }
+    @media (max-width: 640px){
+      .letters{ gap: 10px; }
+      .letterBtn{ width: 96px; height: 132px; }
+      .emoji{ font-size: 30px; }
+      .letter{ font-size: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div>
+        <div class="title">ABC Bajnokság</div>
+        <div class="sub">Koppints a ✅ gombra, hogy készen állsz. 3 mérkőzés, mérkőzésenként 10 kör.</div>
+      </div>
+      <div class="controls">
+        <button id="btnReady">✅ Készen állok</button>
+        <button id="btnRepeat">Ismételd a hangot</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="pill" id="champInfo">Bajnokság: 0 / 3</div>
+        <div class="pill" id="matchInfo">Mérkőzés: 0 / 10</div>
+        <div class="pill" id="levelInfo">Szint: 1</div>
+        <div class="pill" id="aiInfo">Ellenfél: —</div>
+      </div>
+
+      <div class="arena">
+        <div class="bigText" id="headline">Koppints a ✅ gombra a kezdéshez.</div>
+        <div class="countdown" id="countdown"></div>
+
+        <div class="letters" id="letters" aria-label="Betűk"></div>
+
+        <div class="hint" id="prompt">A feladat itt jelenik meg és hangosan is elhangzik.</div>
+
+        <div class="score">
+          <div class="scoreBox">
+            <div class="name">Te</div>
+            <div class="meta" id="youMeta">3 mp-ed van választani.</div>
+            <div class="points" id="youScore">0</div>
+          </div>
+          <div class="scoreBox">
+            <div class="name" id="oppName">Ellenfél</div>
+            <div class="meta" id="oppMeta">Sebesség és pontosság skálázódik.</div>
+            <div class="points" id="oppScore">0</div>
+          </div>
+        </div>
+
+        <div class="status" id="status">Készen áll.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./game.js"></script>
+</body>
+</html>
