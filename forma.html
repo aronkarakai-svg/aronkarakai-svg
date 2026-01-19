@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hang–szín–forma párosítás (4–6 alakzat)</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --ok: rgba(92,255,156,.35);
+      --bad: rgba(255,92,92,.35);
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app{
+      min-height: 100vh;
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      align-items: center;
+    }
+
+    .topbar{
+      width: min(980px, 96vw);
+      display:flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .task{
+      display:flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 260px;
+      flex: 1;
+    }
+    .task .title{ font-weight: 800; letter-spacing: .2px; }
+    .task strong{ font-size: 16px; }
+    .task small{ color: var(--muted); line-height: 1.2; }
+
+    .controls{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button, select{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    button:active{ transform: translateY(1px); }
+    select{ cursor: pointer; }
+
+    .card{
+      width: min(980px, 96vw);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .gridWrap{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      min-height: 320px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      width: 100%;
+      max-width: 920px;
+    }
+
+    @media (min-width: 820px){
+      .grid{
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+    }
+
+    .tile{
+      height: 140px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.12);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position: relative;
+      user-select:none;
+      touch-action:none;
+      cursor:pointer;
+      overflow:hidden;
+    }
+    .tile:active{ transform: scale(0.99); }
+
+    .tile.ok{ outline: 6px solid var(--ok); outline-offset: 3px; }
+    .tile.bad{ outline: 6px solid var(--bad); outline-offset: 3px; }
+
+    .shape{
+      width: 92px;
+      height: 92px;
+      display:block;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,.35));
+    }
+
+    .status{
+      margin-top: 10px;
+      text-align:center;
+      font-weight: 800;
+      min-height: 22px;
+      color: var(--muted);
+    }
+    .status.ok{ color: rgba(160,255,200,.95); }
+    .status.bad{ color: rgba(255,160,160,.95); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="task">
+        <div class="title">Hang–szín–forma párosítás</div>
+        <strong id="taskText">Nyomd meg az “Új feladat” gombot.</strong>
+        <small>Tabletbarát: koppints a megfelelő alakzatra. Hanggal működik.</small>
+      </div>
+      <div class="controls">
+        <label style="display:flex;gap:8px;align-items:center;">
+          <span style="color:var(--muted);font-weight:800;">Nehézség</span>
+          <select id="difficulty">
+            <option value="1">1 tulajdonság</option>
+            <option value="2" selected>2 tulajdonság</option>
+          </select>
+        </label>
+        <button id="btnNew">Új feladat</button>
+        <button id="btnRepeat">Ismételd a hangot</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="gridWrap">
+        <div id="grid" class="grid" aria-label="Alakzatok"></div>
+      </div>
+      <div id="status" class="status">Készen áll.</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const gridEl = document.getElementById("grid");
+  const taskTextEl = document.getElementById("taskText");
+  const statusEl = document.getElementById("status");
+  const btnNew = document.getElementById("btnNew");
+  const btnRepeat = document.getElementById("btnRepeat");
+  const difficultyEl = document.getElementById("difficulty");
+
+  const colors = [
+    { key: "piros", css: "#e53935" },
+    { key: "kék", css: "#1e88e5" },
+    { key: "zöld", css: "#43a047" },
+    { key: "sárga", css: "#fdd835" },
+    { key: "lila", css: "#8e24aa" },
+    { key: "narancs", css: "#fb8c00" }
+  ];
+
+  const shapes = [
+    { key: "kör",      draw: (fill) => svgCircle(fill) },
+    { key: "négyzet",  draw: (fill) => svgSquare(fill) },
+    { key: "háromszög",draw: (fill) => svgTriangle(fill) }
+  ];
+
+  // --- Stable TTS (queue + watchdog) ---
+  const TTS = (() => {
+    const hasTTS = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
+    let queue = [];
+    let speaking = false;
+    let lastText = "";
+    let voiceHU = null;
+    let watchdog = null;
+
+    function loadVoiceHU(){
+      if (!hasTTS) return;
+      const voices = window.speechSynthesis.getVoices?.() || [];
+      voiceHU = voices.find(v => (v.lang || "").toLowerCase().startsWith("hu")) || null;
+    }
+    if (hasTTS){
+      window.speechSynthesis.onvoiceschanged = () => loadVoiceHU();
+      loadVoiceHU();
+    }
+
+    function stopWatchdog(){
+      if (watchdog) clearTimeout(watchdog);
+      watchdog = null;
+    }
+    function startWatchdog(text){
+      stopWatchdog();
+      watchdog = setTimeout(() => {
+        try{ window.speechSynthesis.cancel(); }catch(_){}
+        speaking = false;
+        queue.unshift(text);
+        setTimeout(drain, 120);
+      }, 6000);
+    }
+
+    function drain(){
+      if (!hasTTS) return;
+      if (speaking) return;
+      if (!queue.length) return;
+
+      const text = queue.shift();
+      if (!text) return;
+
+      speaking = true;
+
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "hu-HU";
+      u.rate = 0.92;
+      u.pitch = 1.0;
+      if (voiceHU) u.voice = voiceHU;
+
+      u.onend = () => {
+        stopWatchdog();
+        speaking = false;
+        setTimeout(drain, 60);
+      };
+      u.onerror = () => {
+        stopWatchdog();
+        speaking = false;
+        setTimeout(drain, 80);
+      };
+
+      startWatchdog(text);
+
+      try{ window.speechSynthesis.speak(u); }
+      catch(_){
+        stopWatchdog();
+        speaking = false;
+      }
+    }
+
+    function say(text){
+      lastText = text;
+      if (!hasTTS) return;
+      queue.push(text);
+      setTimeout(drain, 40);
+    }
+
+    function repeat(){ if (lastText) say(lastText); }
+    function hardStop(){
+      if (!hasTTS) return;
+      queue = [];
+      speaking = false;
+      stopWatchdog();
+      try{ window.speechSynthesis.cancel(); }catch(_){}
+    }
+
+    return { say, repeat, hardStop, last: () => lastText };
+  })();
+
+  // --- SVG helpers ---
+  function svgWrap(inner){
+    return `<svg class="shape" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${inner}</svg>`;
+  }
+  function svgCircle(fill){
+    return svgWrap(`<circle cx="50" cy="50" r="36" fill="${fill}" />`);
+  }
+  function svgSquare(fill){
+    return svgWrap(`<rect x="18" y="18" width="64" height="64" rx="10" ry="10" fill="${fill}" />`);
+  }
+  function svgTriangle(fill){
+    return svgWrap(`<polygon points="50,14 88,84 12,84" fill="${fill}" />`);
+  }
+
+  // --- Game state ---
+  let tiles = []; // [{id, colorKey, colorCss, shapeKey}]
+  let task = null; // {textHU, answerId, predicate(tile)->bool}
+  let locked = false;
+
+  function setStatus(type, text){
+    statusEl.classList.remove("ok","bad");
+    if (type) statusEl.classList.add(type);
+    statusEl.textContent = text;
+  }
+
+  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+  function pickRandom(arr){ return arr[randInt(0, arr.length-1)]; }
+  function shuffle(arr){
+    const a = arr.slice();
+    for (let i=a.length-1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function buildTiles(){
+    const n = randInt(4, 6);
+
+    // Válasszunk n db egyedi (szín, forma) kombinációt a 6*3=18-ból
+    const combos = [];
+    for (const c of colors){
+      for (const s of shapes){
+        combos.push({ colorKey: c.key, colorCss: c.css, shapeKey: s.key, draw: s.draw });
+      }
+    }
+    const chosen = shuffle(combos).slice(0, n);
+
+    tiles = chosen.map((x, i) => ({
+      id: "t" + i,
+      colorKey: x.colorKey,
+      colorCss: x.colorCss,
+      shapeKey: x.shapeKey,
+      draw: x.draw
+    }));
+  }
+
+  function renderTiles(){
+    gridEl.innerHTML = "";
+    // reszponzív: 4-6 elemnél a grid 3 oszlop alapból, nagy kijelzőn 6
+    for (const t of tiles){
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.dataset.id = t.id;
+
+      tile.innerHTML = t.draw(t.colorCss);
+
+      tile.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        if (locked || !task) return;
+        handlePick(t.id);
+      }, {passive:false});
+
+      gridEl.appendChild(tile);
+    }
+  }
+
+  function clearMarks(){
+    gridEl.querySelectorAll(".tile").forEach(el => el.classList.remove("ok","bad"));
+  }
+
+  function markTile(id, cls){
+    const el = gridEl.querySelector(`.tile[data-id="${id}"]`);
+    if (el) el.classList.add(cls);
+  }
+
+  function makeTask(){
+    const diff = Number(difficultyEl.value || "2");
+
+    // Válasszunk egy célt úgy, hogy biztosan egyértelmű legyen:
+    // - diff=1: vagy egyedi szín, vagy egyedi forma (az adott mezők között)
+    // - diff=2: egyedi (szín+forma) kombináció (ez mindig egyedi, mert a tile-ok egyediek)
+    if (diff === 2){
+      const ans = pickRandom(tiles);
+      const text = `Koppints arra, ami ${ans.colorKey} színű és ${ans.shapeKey}.`;
+      return {
+        answerId: ans.id,
+        textHU: text,
+        predicate: (t) => t.id === ans.id
+      };
+    }
+
+    // diff === 1
+    // próbáljuk meg találni: olyan színt, ami pontosan 1x szerepel; vagy formát, ami pontosan 1x szerepel.
+    const colorCounts = new Map();
+    const shapeCounts = new Map();
+    for (const t of tiles){
+      colorCounts.set(t.colorKey, (colorCounts.get(t.colorKey)||0)+1);
+      shapeCounts.set(t.shapeKey, (shapeCounts.get(t.shapeKey)||0)+1);
+    }
+
+    const uniqueColors = [...colorCounts.entries()].filter(([,cnt]) => cnt === 1).map(([k]) => k);
+    const uniqueShapes = [...shapeCounts.entries()].filter(([,cnt]) => cnt === 1).map(([k]) => k);
+
+    // ha nincs egyedi, akkor fallback diff=2 (ritka, de előfordulhat 4–6 elemnél)
+    if (!uniqueColors.length && !uniqueShapes.length){
+      const ans = pickRandom(tiles);
+      const text = `Koppints arra, ami ${ans.colorKey} színű és ${ans.shapeKey}.`;
+      return { answerId: ans.id, textHU: text, predicate: (t)=>t.id===ans.id };
+    }
+
+    // Véletlen választás: szín vagy forma
+    const mode = (uniqueColors.length && uniqueShapes.length)
+      ? pickRandom(["color","shape"])
+      : (uniqueColors.length ? "color" : "shape");
+
+    if (mode === "color"){
+      const colorKey = pickRandom(uniqueColors);
+      const ans = tiles.find(t => t.colorKey === colorKey);
+      return {
+        answerId: ans.id,
+        textHU: `Koppints a ${colorKey} színűre.`,
+        predicate: (t) => t.colorKey === colorKey
+      };
+    } else {
+      const shapeKey = pickRandom(uniqueShapes);
+      const ans = tiles.find(t => t.shapeKey === shapeKey);
+      return {
+        answerId: ans.id,
+        textHU: `Koppints arra, ami ${shapeKey}.`,
+        predicate: (t) => t.shapeKey === shapeKey
+      };
+    }
+  }
+
+  function startNew(){
+    locked = false;
+    clearMarks();
+    setStatus("", "Készen áll.");
+
+    buildTiles();
+    renderTiles();
+
+    task = makeTask();
+    taskTextEl.textContent = task.textHU;
+    setStatus("", "Koppints a megfelelő alakzatra.");
+    TTS.say(task.textHU);
+  }
+
+  function handlePick(id){
+    locked = true;
+    clearMarks();
+
+    const picked = tiles.find(t => t.id === id);
+    const correct = task && picked && task.predicate(picked);
+
+    if (correct){
+      markTile(id, "ok");
+      setStatus("ok", "Ügyes vagy!");
+      TTS.say("Ügyes vagy!");
+    } else {
+      markTile(id, "bad");
+      setStatus("bad", "Nem jó.");
+      TTS.say("Nem jó.");
+    }
+
+    setTimeout(() => startNew(), 900);
+  }
+
+  btnNew.addEventListener("click", () => startNew());
+  btnRepeat.addEventListener("click", () => TTS.repeat());
+  difficultyEl.addEventListener("change", () => startNew());
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) TTS.hardStop();
+  });
+
+  setStatus("", "Nyomd meg az “Új feladat” gombot.");
+})();
+</script>
+</body>
+</html>
