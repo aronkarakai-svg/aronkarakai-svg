@@ -5,30 +5,16 @@
   const OPPONENT_NAMES = ["Dominik","Olivér","Levente","Marcell","Máté","Noel","Bence","Zalán","Ádám","Milán"];
   const GROUPS = ["középső csoportos", "nagycsoportos"];
 
-  // Kezdő AI paraméterek
-  const AI_BASE = {
-    reactionSeconds: 1.25, // a feladat elhangzása UTÁN ennyi idő múlva választ
-    accuracy: 0.70
-  };
-
-  // Szintlépés: ha a gyerek nyer mérkőzést
-  const AI_STEP = {
-    reactionDelta: -0.25,
-    accuracyDelta: +0.05
-  };
-
-  const LIMITS = {
-    minReaction: 0.45,
-    maxAccuracy: 0.95
-  };
+  const AI_BASE = { reactionSeconds: 1.25, accuracy: 0.70 };
+  const AI_STEP = { reactionDelta: -0.25, accuracyDelta: +0.05 };
+  const LIMITS = { minReaction: 0.45, maxAccuracy: 0.95 };
 
   const CHAMP_MATCHES = 3;
   const MATCH_ROUNDS = 10;
 
-  // FONTOS: 6 mp, és csak a feladatmondat befejezése után indul
+  // 6 mp – és csak a feladatmondat után indul
   const CHILD_TIME_LIMIT_MS = 6000;
 
-  // Betűk + emoji
   const LETTER_BANK = [
     { letter: "A", emoji: "🍎", word: "alma" },
     { letter: "B", emoji: "🍌", word: "banán" },
@@ -79,16 +65,15 @@
   const oppMetaEl  = el("oppMeta");
 
   // -----------------------------
-  // Stabil TTS (queue + watchdog) + sayAsync
+  // Stabil TTS + sayAsync timeout-tal
   // -----------------------------
   const TTS = (() => {
     const hasTTS = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
-    /** @type {{text:string, resolve?: (ok:boolean)=>void}[]} */
-    let queue = [];
+
+    let queue = []; // {text, resolve?, timeoutMs?}
     let speaking = false;
     let lastText = "";
     let voiceHU = null;
-    let watchdog = null;
 
     function loadVoiceHU(){
       if (!hasTTS) return;
@@ -100,19 +85,11 @@
       loadVoiceHU();
     }
 
-    function stopWatchdog(){
-      if (watchdog) clearTimeout(watchdog);
-      watchdog = null;
-    }
-
-    function startWatchdog(item){
-      stopWatchdog();
-      watchdog = setTimeout(() => {
-        try{ window.speechSynthesis.cancel(); }catch(_){}
-        speaking = false;
-        queue.unshift(item);
-        setTimeout(drain, 120);
-      }, 6500);
+    function hardStop(){
+      if (!hasTTS) return;
+      queue = [];
+      speaking = false;
+      try{ window.speechSynthesis.cancel(); }catch(_){}
     }
 
     function drain(){
@@ -131,26 +108,35 @@
       u.pitch = 1.0;
       if (voiceHU) u.voice = voiceHU;
 
-      u.onend = () => {
-        stopWatchdog();
+      let finished = false;
+      let fallbackTimer = null;
+
+      const finish = (ok) => {
+        if (finished) return;
+        finished = true;
         speaking = false;
-        if (item.resolve) item.resolve(true);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+        if (item.resolve) item.resolve(ok);
         setTimeout(drain, 60);
       };
-      u.onerror = () => {
-        stopWatchdog();
-        speaking = false;
-        if (item.resolve) item.resolve(false);
-        setTimeout(drain, 90);
-      };
 
-      startWatchdog(item);
+      // Kritikus: ha a böngésző nem küld onend-et, akkor is oldjuk fel.
+      const timeoutMs = Math.max(800, item.timeoutMs || 3500);
+      fallbackTimer = setTimeout(() => {
+        // próbáljuk leállítani a beragadt beszédet, majd lépjünk tovább
+        try{ window.speechSynthesis.cancel(); }catch(_){}
+        finish(false);
+      }, timeoutMs);
 
-      try { window.speechSynthesis.speak(u); }
-      catch(_) {
-        stopWatchdog();
-        speaking = false;
-        if (item.resolve) item.resolve(false);
+      u.onend = () => finish(true);
+      u.onerror = () => finish(false);
+
+      try{
+        window.speechSynthesis.speak(u);
+      } catch(_){
+        try{ window.speechSynthesis.cancel(); }catch(__){}
+        finish(false);
       }
     }
 
@@ -158,28 +144,21 @@
       lastText = text;
       if (!hasTTS) return;
       queue.push({ text });
-      setTimeout(drain, 40);
+      setTimeout(drain, 20);
     }
 
-    function sayAsync(text){
+    // timeoutMs: max várakozás; ha nincs onend, akkor is továbblépünk
+    function sayAsync(text, timeoutMs = 3500){
       lastText = text;
-      if (!hasTTS) return Promise.resolve(true);
+      if (!hasTTS) return Promise.resolve(false);
       return new Promise((resolve) => {
-        queue.push({ text, resolve });
-        setTimeout(drain, 40);
+        queue.push({ text, resolve, timeoutMs });
+        setTimeout(drain, 20);
       });
     }
 
     function repeat(){
       if (lastText) say(lastText);
-    }
-
-    function hardStop(){
-      if (!hasTTS) return;
-      queue = [];
-      speaking = false;
-      stopWatchdog();
-      try{ window.speechSynthesis.cancel(); }catch(_){}
     }
 
     return { say, sayAsync, repeat, hardStop, last: () => lastText };
@@ -205,13 +184,10 @@
     statusEl.textContent = text;
   }
 
-  function setPrompt(text){
-    promptEl.textContent = text;
-  }
+  function setPrompt(text){ promptEl.textContent = text; }
+  function setHeader(text){ headline.textContent = text; }
 
-  function clearLetters(){
-    lettersEl.innerHTML = "";
-  }
+  function clearLetters(){ lettersEl.innerHTML = ""; }
 
   function renderLetters(items){
     clearLetters();
@@ -240,17 +216,11 @@
     }
   }
 
-  function setHeader(text){
-    headline.textContent = text;
-  }
-
   function updateHud(){
     champInfo.textContent = `Bajnokság: ${state.champ.matchIndex} / ${CHAMP_MATCHES}`;
     matchInfo.textContent = `Mérkőzés: ${state.match.roundIndex} / ${MATCH_ROUNDS}`;
     levelInfo.textContent = `Szint: ${state.level}`;
-    aiInfo.textContent = state.match.opponent
-      ? `Ellenfél: ${state.match.opponent.name}`
-      : "Ellenfél: —";
+    aiInfo.textContent = state.match.opponent ? `Ellenfél: ${state.match.opponent.name}` : "Ellenfél: —";
 
     youScoreEl.textContent = String(state.match.youPoints);
     oppScoreEl.textContent = String(state.match.oppPoints);
@@ -264,32 +234,22 @@
   }
 
   // -----------------------------
-  // Állapotgép
+  // Állapot
   // -----------------------------
   const state = {
     phase: "idle",
     level: 1,
     ai: { reactionSeconds: AI_BASE.reactionSeconds, accuracy: AI_BASE.accuracy },
 
-    champ: {
-      matchIndex: 0,
-      youMatchWins: 0,
-      oppMatchWins: 0
-    },
+    champ: { matchIndex: 0, youMatchWins: 0, oppMatchWins: 0 },
 
-    match: {
-      opponent: null,
-      roundIndex: 0,
-      youPoints: 0,
-      oppPoints: 0
-    },
+    match: { opponent: null, roundIndex: 0, youPoints: 0, oppPoints: 0 },
 
     round: {
       letters: [],
       targetLetter: null,
       startedAt: 0,
-      canPick: false,           // csak a feladatmondat után engedjük a választást
-      childPick: null,
+      canPick: false,
       opponentPick: null,
       timers: []
     }
@@ -307,10 +267,11 @@
     state.match.roundIndex = 0;
     state.match.youPoints = 0;
     state.match.oppPoints = 0;
-    state.round = { letters: [], targetLetter: null, startedAt: 0, canPick: false, childPick: null, opponentPick: null, timers: [] };
+    state.round = { letters: [], targetLetter: null, startedAt: 0, canPick: false, opponentPick: null, timers: [] };
   }
 
   function resetChamp(){
+    clearTimers();
     state.phase = "idle";
     state.level = 1;
     state.ai = { reactionSeconds: AI_BASE.reactionSeconds, accuracy: AI_BASE.accuracy };
@@ -332,32 +293,35 @@
   // Játéklogika
   // -----------------------------
   function pickOpponent(){
-    const name = pickRandom(OPPONENT_NAMES);
-    const group = pickRandom(GROUPS);
-    return { name, group };
-  }
-
-  function speakOpponentIntro(opp){
-    const txt = `Az ellenfeled ${opp.name}. ${opp.group}. Sok mérkőzést nyert már meg, le akar győzni téged.`;
-    setHeader(`Az ellenfeled: ${opp.name} (${opp.group})`);
-    setPrompt(txt);
-    TTS.say(txt);
+    return { name: pickRandom(OPPONENT_NAMES), group: pickRandom(GROUPS) };
   }
 
   async function startMatch(){
+    clearTimers();
+    TTS.hardStop(); // fontos: ha előző beszéd beragadt, itt takarítunk
+
     state.phase = "intro";
     resetMatch();
     state.champ.matchIndex += 1;
     state.match.opponent = pickOpponent();
     updateHud();
 
-    speakOpponentIntro(state.match.opponent);
+    const opp = state.match.opponent;
+    const intro = `Az ellenfeled ${opp.name}. ${opp.group}. Sok mérkőzést nyert már meg, le akar győzni téged.`;
 
-    const t = setTimeout(() => startCountdown(), 1200);
-    state.round.timers.push(t);
+    setHeader(`Az ellenfeled: ${opp.name} (${opp.group})`);
+    setPrompt(intro);
+    setStatus("", "Bemutatkozás...");
+
+    // Intro beszéd: max 7s-ig várunk, utána is továbblépünk
+    await TTS.sayAsync(intro, 7000);
+
+    if (state.phase !== "intro") return;
+    startCountdown();
   }
 
   function startCountdown(){
+    clearTimers();
     state.phase = "countdown";
     countdown.textContent = "";
     clearLetters();
@@ -402,18 +366,14 @@
     setStatus("", "Hallgasd meg a feladatot, utána indul az idő!");
     updateHud();
 
-    // input tiltás, amíg beszél
     state.round.canPick = false;
     state.round.startedAt = 0;
-    state.round.childPick = null;
     state.round.opponentPick = null;
 
-    // A lényeg: csak a feladatmondat BEFEJEZÉSE után indul a számláló (6 mp) és az AI döntés
-    await TTS.sayAsync(taskTxt);
+    // Feladat beszéd: max 4.5s-ig várunk, ha beragad / nem indul, akkor is kezdünk
+    await TTS.sayAsync(taskTxt, 4500);
 
-    // Ha közben valamiért kiléptünk a körből (ritka), ne induljunk el
     if (state.phase !== "playing") return;
-
     beginTimingAfterSpeech();
   }
 
@@ -424,79 +384,53 @@
     setStatus("", "Most válassz! (6 mp)");
     updateHud();
 
-    // Gyerek időlimit: 6s
-    const childDeadline = setTimeout(() => {
+    // 6 mp gyereknek
+    state.round.timers.push(setTimeout(() => {
       if (state.phase === "playing"){
         setStatus("", "Lejárt az idő!");
       }
-    }, CHILD_TIME_LIMIT_MS);
-    state.round.timers.push(childDeadline);
+    }, CHILD_TIME_LIMIT_MS));
 
-    // Ellenfél döntése a beszéd UTÁN számítva
-    const oppDecision = setTimeout(() => {
+    // ellenfél reakció a beszéd után számítva
+    state.round.timers.push(setTimeout(() => {
       if (state.phase !== "playing") return;
       makeOpponentPickAndResolve();
-    }, Math.max(LIMITS.minReaction, state.ai.reactionSeconds) * 1000);
-    state.round.timers.push(oppDecision);
+    }, Math.max(LIMITS.minReaction, state.ai.reactionSeconds) * 1000));
 
-    // Biztonsági zárás 6.2s körül
-    const hardEnd = setTimeout(() => {
+    // hard end: 6.2s
+    state.round.timers.push(setTimeout(() => {
       if (state.phase === "playing"){
         makeOpponentPickAndResolve(true);
       }
-    }, CHILD_TIME_LIMIT_MS + 200);
-    state.round.timers.push(hardEnd);
+    }, CHILD_TIME_LIMIT_MS + 200));
   }
 
   function onChildPick(letter){
     if (state.phase !== "playing") return;
-    if (!state.round.canPick) return; // amíg beszél, ne lehessen klikkelni
+    if (!state.round.canPick) return;
 
-    const now = performance.now();
-    const timeMs = now - state.round.startedAt;
     const correct = (letter === state.round.targetLetter);
-
-    if (state.round.childPick) return;
-    state.round.childPick = { letter, timeMs, correct };
-
     if (correct){
-      resolveRound("you", `Te nyertél!`);
+      resolveRound("you");
       return;
     }
 
     setStatus("bad", "Nem jó. Próbáld újra gyorsan!");
     TTS.say("Nem jó.");
-    // Itt szándékosan NEM zárjuk le a kört rossz kattintásra,
-    // mert 6 mp alatt javíthat (első helyes találat zár).
-    // Ha azt akarod, hogy csak az első kattintás számítson, szólj és átállítom.
-    state.round.childPick = null; // engedjük a további próbát a 6 mp-en belül
   }
 
-  function makeOpponentPickAndResolve(force = false){
+  function makeOpponentPickAndResolve(){
     if (state.phase !== "playing") return;
     if (state.round.opponentPick) return;
 
-    const now = performance.now();
-    const timeMs = state.round.startedAt ? (now - state.round.startedAt) : 0;
-
     const willBeCorrect = Math.random() < state.ai.accuracy;
+    state.round.opponentPick = { correct: willBeCorrect };
 
-    let chosenLetter;
-    if (willBeCorrect){
-      chosenLetter = state.round.targetLetter;
-    } else {
-      const others = state.round.letters.map(x => x.letter).filter(x => x !== state.round.targetLetter);
-      chosenLetter = pickRandom(others);
-    }
-
-    state.round.opponentPick = { letter: chosenLetter, timeMs, correct: willBeCorrect };
-
-    // Ha a gyerek időközben már nyert volna, az resolveRound lezárta a kört.
-    const oppName = state.match.opponent.name;
-    resolveRound("opp", `${oppName} nyert!`);
+    // ha eddig nem nyert a gyerek, akkor az ellenfél viszi a kört (a te szabályod szerint)
+    resolveRound("opp");
   }
 
-  function resolveRound(winner, announceText){
+  function resolveRound(winner){
     if (state.phase !== "playing") return;
 
     state.phase = "roundResult";
@@ -516,14 +450,13 @@
 
     updateHud();
 
-    const t = setTimeout(() => {
+    state.round.timers.push(setTimeout(() => {
       if (state.match.roundIndex >= MATCH_ROUNDS){
         endMatch();
       } else {
         startCountdown();
       }
-    }, 850);
-    state.round.timers.push(t);
+    }, 850));
   }
 
   function endMatch(){
@@ -554,7 +487,7 @@
 
     updateHud();
 
-    const t = setTimeout(() => {
+    state.round.timers.push(setTimeout(() => {
       if (state.champ.matchIndex >= CHAMP_MATCHES){
         endChampionship();
       } else {
@@ -566,8 +499,7 @@
         setStatus("", "Készen áll.");
         updateHud();
       }
-    }, 1200);
-    state.round.timers.push(t);
+    }, 1200));
   }
 
   function endChampionship(){
@@ -592,20 +524,22 @@
 
     updateHud();
 
-    const t = setTimeout(() => {
+    state.round.timers.push(setTimeout(() => {
       state.phase = "idle";
       setHeader("Koppints a ✅ gombra, ha új bajnokságot szeretnél.");
       setPrompt("Új bajnoksághoz koppints a ✅ gombra.");
       setStatus("", "Készen áll.");
-    }, 1200);
-    state.round.timers.push(t);
+    }, 1200));
   }
 
   // -----------------------------
   // Események
   // -----------------------------
   btnReady.addEventListener("click", () => {
-    if (state.phase === "playing" || state.phase === "countdown" || state.phase === "intro" || state.phase === "roundResult" || state.phase === "matchEnd") return;
+    // bármilyen beragadás esetén: egy új kattintás tisztít
+    TTS.hardStop();
+
+    if (["playing","countdown","intro","roundResult","matchEnd"].includes(state.phase)) return;
 
     if (state.phase === "champEnd"){
       resetChamp();
