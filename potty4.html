@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Körválasztós játék (4 kör) – 15%+ méretkülönbség + stabil TTS</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --ok: rgba(92,255,156,.35);
+      --bad: rgba(255,92,92,.35);
+
+      --hit: 110px; /* JS számolja */
+      --gap: 16px;  /* JS számolja */
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 30% 0%, #16224a 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app{
+      min-height: 100vh;
+      display:flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      align-items: center;
+    }
+
+    .topbar{
+      width: min(900px, 96vw);
+      display:flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .task{
+      display:flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 260px;
+      flex: 1;
+    }
+    .task .title{ font-weight: 800; letter-spacing: .2px; }
+    .task strong{ font-size: 16px; }
+    .task small{ color: var(--muted); line-height: 1.2; }
+
+    .controls{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    button:active{ transform: translateY(1px); }
+
+    .card{
+      width: min(900px, 96vw);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .rowWrap{
+      display:flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 220px;
+    }
+
+    .row{
+      display:flex;
+      flex-wrap: nowrap;
+      align-items: flex-end;
+      justify-content: center;
+      gap: var(--gap);
+      padding: 18px 10px;
+      border-radius: 14px;
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(0,0,0,.12);
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .dotHit{
+      width: var(--hit);
+      height: var(--hit);
+      border-radius: 18px;
+      display:flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      touch-action: none;
+      cursor: pointer;
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .dotHit:active{ transform: scale(0.985); }
+
+    .dot{
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.18);
+      box-shadow: 0 12px 28px rgba(0,0,0,.35);
+      position: relative;
+    }
+
+    .dotHit.ok{ outline: 6px solid var(--ok); outline-offset: 6px; }
+    .dotHit.bad{ outline: 6px solid var(--bad); outline-offset: 6px; }
+
+    .legend{
+      margin-top: 10px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 800;
+      min-height: 22px;
+    }
+    .legend.ok{ color: rgba(160,255,200,.95); }
+    .legend.bad{ color: rgba(255,160,160,.95); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="task">
+        <div class="title">Körválasztós játék (4 kör)</div>
+        <strong id="taskText">Nyomd meg az “Új feladat” gombot.</strong>
+        <small>Hang alapú játék: koppints a megfelelő körre.</small>
+      </div>
+      <div class="controls">
+        <button id="btnNew">Új feladat</button>
+        <button id="btnRepeat">Ismételd a hangot</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="rowWrap">
+        <div id="row" class="row" aria-label="4 kör egy sorban"></div>
+      </div>
+      <div id="status" class="legend">Készen áll.</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const N = 4;                 // fix 4 kör
+  const MIN_RATIO = 1.15;      // minimum 15% különbség (szorzó)
+
+  const rowEl = document.getElementById("row");
+  const taskTextEl = document.getElementById("taskText");
+  const statusEl = document.getElementById("status");
+  const btnNew = document.getElementById("btnNew");
+  const btnRepeat = document.getElementById("btnRepeat");
+
+  const colorPool = [
+    { key:"piros",   css:"#e53935" },
+    { key:"zöld",    css:"#43a047" },
+    { key:"kék",     css:"#1e88e5" },
+    { key:"sárga",   css:"#fdd835" },
+    { key:"lila",    css:"#8e24aa" },
+    { key:"narancs", css:"#fb8c00" }
+  ];
+
+  let dots = [];      // [{id, idx, colorKey, colorCss, sizePx}]
+  let task = null;    // { type, textHU, answerId }
+  let locked = false;
+
+  // ---------------------------
+  // Stabilabb TTS (queue + watchdog)
+  // ---------------------------
+  const TTS = (() => {
+    const hasTTS = ("speechSynthesis" in window) && ("SpeechSynthesisUtterance" in window);
+    let queue = [];
+    let speaking = false;
+    let lastText = "";
+    let voiceHU = null;
+    let watchdog = null;
+
+    function loadVoiceHU(){
+      if (!hasTTS) return;
+      const voices = window.speechSynthesis.getVoices?.() || [];
+      voiceHU = voices.find(v => (v.lang || "").toLowerCase().startsWith("hu")) || null;
+    }
+
+    if (hasTTS) {
+      window.speechSynthesis.onvoiceschanged = () => loadVoiceHU();
+      loadVoiceHU();
+    }
+
+    function stopWatchdog(){
+      if (watchdog) clearTimeout(watchdog);
+      watchdog = null;
+    }
+
+    function startWatchdog(utter){
+      stopWatchdog();
+      // Ha 6 másodpercnél tovább "beragad", soft reset és újraindítás
+      watchdog = setTimeout(() => {
+        try{
+          window.speechSynthesis.cancel();
+        }catch(_){}
+        speaking = false;
+        // visszatesszük a mondatot a queue elejére, ha még ott van
+        queue.unshift(utter.text);
+        // kis késleltetés után próbáljuk újra
+        setTimeout(drain, 120);
+      }, 6000);
+    }
+
+    function drain(){
+      if (!hasTTS) return;
+      if (speaking) return;
+      if (!queue.length) return;
+
+      const text = queue.shift();
+      if (!text) return;
+
+      // iOS/Android esetén hasznos: ne cancel->speak azonnal, hanem mikro delay
+      speaking = true;
+
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "hu-HU";
+      u.rate = 0.92;
+      u.pitch = 1.0;
+      if (voiceHU) u.voice = voiceHU;
+
+      u.onend = () => {
+        stopWatchdog();
+        speaking = false;
+        // kis delay, hogy ne vágja le a következőt
+        setTimeout(drain, 60);
+      };
+      u.onerror = () => {
+        stopWatchdog();
+        speaking = false;
+        setTimeout(drain, 80);
+      };
+
+      startWatchdog(u);
+
+      // Biztonság: ha a motor pending/speaking állapotban maradt, ne torlódjon
+      try{
+        // Nem használunk folyamatos cancel-t, csak ha tényleg "beragadt"
+        window.speechSynthesis.speak(u);
+      }catch(_){
+        stopWatchdog();
+        speaking = false;
+      }
+    }
+
+    function say(text){
+      lastText = text;
+      if (!hasTTS) return;
+
+      // Sorbarakás: nem cancel-eljük a folyamatban lévőt,
+      // így kisebb eséllyel vágódik le a mondat vége.
+      queue.push(text);
+      // kis késleltetés, hogy a UI események után induljon
+      setTimeout(drain, 40);
+    }
+
+    function repeat(){
+      if (lastText) say(lastText);
+    }
+
+    function hardStop(){
+      if (!hasTTS) return;
+      queue = [];
+      speaking = false;
+      stopWatchdog();
+      try{ window.speechSynthesis.cancel(); }catch(_){}
+    }
+
+    return { say, repeat, hardStop, hasTTS: () => hasTTS, last: () => lastText };
+  })();
+
+  // ---------------------------
+  // UI + játéklogika
+  // ---------------------------
+  function setStatus(type, text){
+    statusEl.classList.remove("ok","bad");
+    if (type) statusEl.classList.add(type);
+    statusEl.textContent = text;
+  }
+
+  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+  function pickRandom(arr){ return arr[randInt(0, arr.length-1)]; }
+  function shuffle(arr){
+    const a = arr.slice();
+    for (let i=a.length-1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function applyResponsiveLayout(){
+    const rect = rowEl.getBoundingClientRect();
+    const available = Math.max(360, rect.width - 20);
+
+    const gap = Math.max(12, Math.min(20, Math.floor(available * 0.03)));
+    const rawHit = Math.floor((available - gap * (N - 1)) / N);
+
+    const hit = Math.max(86, Math.min(140, rawHit));
+
+    document.documentElement.style.setProperty("--gap", gap + "px");
+    document.documentElement.style.setProperty("--hit", hit + "px");
+
+    return { hit, gap };
+  }
+
+  function generateSizes(hit){
+    const maxDot = Math.max(78, hit - 10);
+    const minDotHard = 78;
+
+    const maxFactor = Math.pow(MIN_RATIO, N - 1);
+    const baseMax = Math.floor(maxDot / maxFactor);
+    const base = Math.max(minDotHard, baseMax);
+
+    const sizes = [];
+    for (let i=0; i<N; i++){
+      sizes.push(Math.floor(base * Math.pow(MIN_RATIO, i)));
+    }
+
+    // ellenőrzés: legalább 15% lépcső tényleg megvan
+    for (let i=1; i<N; i++){
+      if (sizes[i] < Math.floor(sizes[i-1] * MIN_RATIO)){
+        // újraszámolás maxDot-hoz
+        const newBase = Math.max(minDotHard, Math.floor(maxDot / maxFactor));
+        for (let j=0; j<N; j++){
+          sizes[j] = Math.floor(newBase * Math.pow(MIN_RATIO, j));
+        }
+        break;
+      }
+    }
+
+    // clamp maxDot alá
+    for (let i=0; i<N; i++){
+      sizes[i] = Math.max(minDotHard, Math.min(maxDot, sizes[i]));
+    }
+
+    return sizes;
+  }
+
+  function buildDots(){
+    const colors = shuffle(colorPool).concat(shuffle(colorPool));
+
+    dots = [];
+    for (let i=0; i<N; i++){
+      const col = colors[i];
+      dots.push({
+        id: "d" + i,
+        idx: i,
+        colorKey: col.key,
+        colorCss: col.css,
+        sizePx: 100
+      });
+    }
+
+    const { hit } = applyResponsiveLayout();
+    const sizes = shuffle(generateSizes(hit)); // random sorrend
+    for (let i=0; i<N; i++){
+      dots[i].sizePx = sizes[i];
+    }
+  }
+
+  function renderDots(){
+    rowEl.innerHTML = "";
+    for (const d of dots){
+      const hit = document.createElement("div");
+      hit.className = "dotHit";
+      hit.dataset.id = d.id;
+
+      const dot = document.createElement("div");
+      dot.className = "dot";
+      dot.style.width = d.sizePx + "px";
+      dot.style.height = d.sizePx + "px";
+      dot.style.background = d.colorCss;
+
+      hit.appendChild(dot);
+
+      hit.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        if (locked || !task) return;
+        handlePick(d.id);
+      }, {passive:false});
+
+      rowEl.appendChild(hit);
+    }
+  }
+
+  function clearMarks(){
+    rowEl.querySelectorAll(".dotHit").forEach(el => el.classList.remove("ok","bad"));
+  }
+
+  function markHit(id, cls){
+    const el = rowEl.querySelector(`.dotHit[data-id="${id}"]`);
+    if (el) el.classList.add(cls);
+  }
+
+  function makeTask(){
+    const kinds = ["leftmost","rightmost","fromLeftN","fromRightN","color","largest","smallest"];
+    const type = pickRandom(kinds);
+
+    const nthTextHU = (n) => ({1:"elsőt",2:"másodikat",3:"harmadikat",4:"negyediket"}[n] || (n + ".-at"));
+
+    if (type === "leftmost")  return { type, answerId: dots[0].id, textHU: "Válaszd ki a bal oldalit." };
+    if (type === "rightmost") return { type, answerId: dots[3].id, textHU: "Válaszd ki a jobb oldalit." };
+
+    if (type === "fromLeftN"){
+      const k = randInt(1, 4);
+      return { type, answerId: dots[k-1].id, textHU: `Válaszd ki a balról a ${nthTextHU(k)}.` };
+    }
+    if (type === "fromRightN"){
+      const k = randInt(1, 4);
+      return { type, answerId: dots[4-k].id, textHU: `Válaszd ki a jobbról a ${nthTextHU(k)}.` };
+    }
+    if (type === "color"){
+      const ans = pickRandom(dots);
+      return { type, answerId: ans.id, textHU: `Válaszd ki a ${ans.colorKey}at.` };
+    }
+    if (type === "largest"){
+      const ans = dots.slice().sort((a,b)=>b.sizePx-a.sizePx)[0];
+      return { type, answerId: ans.id, textHU: "Válaszd ki a legnagyobbat." };
+    }
+    if (type === "smallest"){
+      const ans = dots.slice().sort((a,b)=>a.sizePx-b.sizePx)[0];
+      return { type, answerId: ans.id, textHU: "Válaszd ki a legkisebbet." };
+    }
+
+    return { type:"leftmost", answerId: dots[0].id, textHU: "Válaszd ki a bal oldalit." };
+  }
+
+  function startNew(){
+    locked = false;
+    clearMarks();
+    setStatus("", "Készen áll.");
+
+    buildDots();
+    renderDots();
+
+    task = makeTask();
+    taskTextEl.textContent = task.textHU;
+    setStatus("", "Koppints a megfelelő körre.");
+    TTS.say(task.textHU);
+  }
+
+  function handlePick(pickedId){
+    locked = true;
+    clearMarks();
+
+    const correct = pickedId === task.answerId;
+
+    if (correct){
+      markHit(pickedId, "ok");
+      setStatus("ok", "Ügyes vagy!");
+      TTS.say("Ügyes vagy!");
+    } else {
+      markHit(pickedId, "bad");
+      setStatus("bad", "Nem jó.");
+      TTS.say("Nem jó.");
+    }
+
+    setTimeout(() => startNew(), 900);
+  }
+
+  function relayoutOnly(){
+    if (!dots.length) return;
+    const { hit } = applyResponsiveLayout();
+
+    const sizes = shuffle(generateSizes(hit));
+    for (let i=0; i<N; i++){
+      dots[i].sizePx = sizes[i];
+    }
+
+    rowEl.querySelectorAll(".dotHit").forEach((hitEl, i) => {
+      const dotEl = hitEl.querySelector(".dot");
+      if (!dotEl || !dots[i]) return;
+      dotEl.style.width = dots[i].sizePx + "px";
+      dotEl.style.height = dots[i].sizePx + "px";
+    });
+  }
+
+  btnNew.addEventListener("click", () => startNew());
+  btnRepeat.addEventListener("click", () => {
+    // repeat a legutóbbi TTS-t
+    TTS.repeat();
+  });
+
+  window.addEventListener("resize", () => {
+    clearTimeout(window.__rl_t);
+    window.__rl_t = setTimeout(relayoutOnly, 80);
+  });
+
+  // Ha oldal vált/hidden, stop (mobilon ez csökkenti a beragadást)
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) TTS.hardStop();
+  });
+
+  setStatus("", "Nyomd meg az “Új feladat” gombot.");
+})();
+</script>
+</body>
+</html>
