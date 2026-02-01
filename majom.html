@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Majom a fán – Bal vagy Jobb</title>
+  <style>
+    :root{
+      --bg1:#9fe7ff;
+      --bg2:#e7fff2;
+      --trunk:#8b5a2b;
+      --trunk2:#6f451f;
+      --leaf:#2ecc71;
+      --leaf2:#27ae60;
+      --panel: rgba(255,255,255,.75);
+      --text:#083344;
+      --btn:#0ea5e9;
+      --btn2:#0284c7;
+      --danger:#ef4444;
+      --ok:#22c55e;
+      --shadow: 0 12px 30px rgba(0,0,0,.15);
+      --safeTop: env(safe-area-inset-top);
+      --safeBottom: env(safe-area-inset-bottom);
+      --safeLeft: env(safe-area-inset-left);
+      --safeRight: env(safe-area-inset-right);
+    }
+
+    *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height:100%; margin:0; font-family: ui-rounded, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:var(--text); }
+    body{
+      background: linear-gradient(180deg, var(--bg1), var(--bg2));
+      overflow:hidden;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action: manipulation;
+    }
+
+    .app{
+      height:100%;
+      display:flex;
+      flex-direction:column;
+      padding: calc(12px + var(--safeTop)) calc(12px + var(--safeRight)) calc(12px + var(--safeBottom)) calc(12px + var(--safeLeft));
+      gap: 12px;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .stat{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size: 18px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .hearts, .stars{ display:flex; gap:6px; }
+    .heart, .star{ font-size: 22px; filter: drop-shadow(0 2px 0 rgba(0,0,0,.08)); }
+    .muted{ opacity:.35; filter:none; }
+
+    .controls{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:flex-end;
+      margin-left:auto;
+    }
+
+    button{
+      border:0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 16px;
+      font-weight: 800;
+      color:white;
+      background: linear-gradient(180deg, var(--btn), var(--btn2));
+      box-shadow: 0 10px 22px rgba(2,132,199,.25);
+      min-height: 46px; /* touch-friendly */
+    }
+    button:active{ transform: translateY(1px); }
+
+    .btn-secondary{
+      background: rgba(8,51,68,.08);
+      color: var(--text);
+      box-shadow: none;
+      font-weight: 800;
+    }
+    .btn-secondary:active{ background: rgba(8,51,68,.12); }
+
+    .main{
+      position:relative;
+      flex:1;
+      border-radius: 22px;
+      overflow:hidden;
+      box-shadow: var(--shadow);
+      background:
+        radial-gradient(1000px 500px at 50% 30%, rgba(255,255,255,.65), rgba(255,255,255,0)),
+        linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,.18));
+      backdrop-filter: blur(6px);
+    }
+
+    /* TREE */
+    .tree{
+      position:absolute;
+      left:50%;
+      bottom: 0;
+      width: min(320px, 78vw);
+      height: 100%;
+      transform: translateX(-50%);
+      pointer-events:none;
+    }
+
+    .trunk{
+      position:absolute;
+      left:50%;
+      bottom:-20px;
+      width: 96px;
+      height: 84%;
+      transform: translateX(-50%);
+      border-radius: 50px;
+      background: linear-gradient(90deg, var(--trunk2), var(--trunk));
+      box-shadow: inset 0 0 0 4px rgba(255,255,255,.08);
+    }
+
+    .leaves{
+      position:absolute;
+      left:50%;
+      top: 6%;
+      width: 120%;
+      height: 32%;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #b9ffcf, transparent 40%),
+                  radial-gradient(circle at 65% 35%, #b9ffcf, transparent 45%),
+                  radial-gradient(circle at 50% 70%, rgba(255,255,255,.25), transparent 60%),
+                  linear-gradient(180deg, var(--leaf), var(--leaf2));
+      box-shadow: inset 0 0 0 5px rgba(255,255,255,.12);
+    }
+
+    /* MONKEY */
+    .monkey{
+      position:absolute;
+      left: 50%;
+      bottom: 10%;
+      transform: translate(-50%, 0);
+      font-size: 56px;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,.18));
+      transition: transform 420ms cubic-bezier(.2,.8,.2,1);
+      will-change: transform;
+    }
+
+    .monkey.falling{
+      animation: fall 900ms ease-in forwards;
+    }
+
+    @keyframes fall{
+      0%   { transform: translate(-50%, 0) rotate(0deg); }
+      40%  { transform: translate(-50%, 140px) rotate(25deg); }
+      100% { transform: translate(-50%, 520px) rotate(120deg); opacity: .25; }
+    }
+
+    /* PROMPT PANEL */
+    .prompt{
+      position:absolute;
+      left:50%;
+      top: 14px;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,.82);
+      border-radius: 18px;
+      padding: 12px 16px;
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: .3px;
+      box-shadow: 0 10px 22px rgba(0,0,0,.12);
+      backdrop-filter: blur(10px);
+    }
+    .prompt small{
+      display:block;
+      font-weight:800;
+      opacity:.75;
+      font-size: 13px;
+      margin-top: 2px;
+      text-align:center;
+    }
+
+    /* BIG SIDE BUTTONS */
+    .sides{
+      position:absolute;
+      inset:0;
+      display:flex;
+      justify-content:space-between;
+      padding: 18px;
+      gap: 16px;
+    }
+
+    .side-btn{
+      flex:1;
+      border-radius: 22px;
+      border: 2px solid rgba(255,255,255,.55);
+      background: rgba(255,255,255,.22);
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.15);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: 44px;
+      font-weight: 1000;
+      color: rgba(8,51,68,.82);
+      transition: transform 90ms ease, background 180ms ease;
+      min-height: 72vh;
+    }
+    .side-btn:active{ transform: scale(.99); background: rgba(255,255,255,.30); }
+
+    .flash-ok{ animation: flashOk 260ms ease; }
+    .flash-bad{ animation: flashBad 260ms ease; }
+
+    @keyframes flashOk{
+      0%{ background: rgba(34,197,94,.15); }
+      100%{ background: rgba(255,255,255,.22); }
+    }
+    @keyframes flashBad{
+      0%{ background: rgba(239,68,68,.15); }
+      100%{ background: rgba(255,255,255,.22); }
+    }
+
+    /* OVERLAY */
+    .overlay{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background: rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
+      padding: 18px;
+    }
+    .overlay.show{ display:flex; }
+
+    .card{
+      width: min(520px, 92vw);
+      background: rgba(255,255,255,.88);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      text-align:center;
+    }
+    .card h1{
+      margin: 0 0 6px 0;
+      font-size: 28px;
+    }
+    .card p{
+      margin: 0 0 14px 0;
+      font-size: 16px;
+      opacity:.85;
+      line-height: 1.35;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
+    /* iPhone-ish: keep things big */
+    @media (max-width: 420px){
+      .side-btn{ font-size: 40px; }
+      .monkey{ font-size: 52px; }
+      .prompt{ font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="topbar">
+      <div class="stat" aria-label="Életek">
+        <span>Élet:</span>
+        <div class="hearts" id="hearts"></div>
+      </div>
+
+      <div class="stat" aria-label="Csillagok">
+        <span>Csillag:</span>
+        <div class="stars" id="stars"></div>
+      </div>
+
+      <div class="controls">
+        <button class="btn-secondary" id="repeatBtn" type="button">🔊 Ismétlés</button>
+        <button id="startBtn" type="button">▶️ Start</button>
+      </div>
+    </div>
+
+    <div class="main" id="main">
+      <div class="prompt" id="prompt">
+        Nyomd meg a START-ot!
+        <small>Utána én mondom: bal vagy jobb</small>
+      </div>
+
+      <div class="sides">
+        <div class="side-btn" id="leftBtn" role="button" aria-label="Bal gomb">BAL</div>
+        <div class="side-btn" id="rightBtn" role="button" aria-label="Jobb gomb">JOBB</div>
+      </div>
+
+      <div class="tree" aria-hidden="true">
+        <div class="leaves"></div>
+        <div class="trunk"></div>
+        <div class="monkey" id="monkey">🐒</div>
+      </div>
+
+      <div class="overlay" id="overlay">
+        <div class="card">
+          <h1 id="endTitle">Vége</h1>
+          <p id="endText">Kezdjük újra?</p>
+          <div class="row">
+            <button id="restartBtn" type="button">🔁 Új játék</button>
+            <button class="btn-secondary" id="closeOverlayBtn" type="button">✋ Mégse</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const heartsEl = document.getElementById('hearts');
+  const starsEl  = document.getElementById('stars');
+  const promptEl = document.getElementById('prompt');
+  const monkeyEl = document.getElementById('monkey');
+
+  const leftBtn  = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+  const startBtn = document.getElementById('startBtn');
+  const repeatBtn= document.getElementById('repeatBtn');
+
+  const overlay  = document.getElementById('overlay');
+  const endTitle = document.getElementById('endTitle');
+  const endText  = document.getElementById('endText');
+  const restartBtn = document.getElementById('restartBtn');
+  const closeOverlayBtn = document.getElementById('closeOverlayBtn');
+
+  // Game state
+  const MAX_LIVES = 3;
+  const STREAK_FOR_STAR = 5;
+  const MAX_STARS = 5;
+
+  let lives = MAX_LIVES;
+  let correctCount = 0;
+  let stars = 0;
+  let running = false;
+  let current = null; // "left" | "right"
+  let canAnswer = false;
+
+  // Speech
+  const synth = window.speechSynthesis;
+  function pickHungarianVoice() {
+    const voices = synth.getVoices?.() || [];
+    // Prefer hu-HU voice, else any voice that includes 'hu'
+    return voices.find(v => (v.lang || '').toLowerCase().startsWith('hu')) || null;
+  }
+  let voice = null;
+
+  function speak(text) {
+    if (!synth) return;
+
+    try { synth.cancel(); } catch(e) {}
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'hu-HU';
+    u.rate = 0.95;
+    u.pitch = 1.05;
+    if (voice) u.voice = voice;
+
+    canAnswer = false;
+    u.onend = () => { canAnswer = true; };
+    u.onerror = () => { canAnswer = true; };
+    synth.speak(u);
+  }
+
+  function renderLives() {
+    heartsEl.innerHTML = '';
+    for (let i=0;i<MAX_LIVES;i++){
+      const s = document.createElement('span');
+      s.className = 'heart' + (i < lives ? '' : ' muted');
+      s.textContent = '❤️';
+      heartsEl.appendChild(s);
+    }
+  }
+
+  function renderStars() {
+    starsEl.innerHTML = '';
+    for (let i=0;i<MAX_STARS;i++){
+      const s = document.createElement('span');
+      s.className = 'star' + (i < stars ? '' : ' muted');
+      s.textContent = '⭐';
+      starsEl.appendChild(s);
+    }
+  }
+
+  function setPrompt(text, sub='') {
+    promptEl.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`;
+  }
+
+  function randomDirection() {
+    return Math.random() < 0.5 ? 'left' : 'right';
+  }
+
+  function updateMonkeyPosition() {
+    // Climb based on correctCount. Cap at 20-ish steps so it doesn't go out.
+    const step = Math.min(correctCount, 20);
+    // Move up: translateY negative. Also add tiny "hop" feeling with a small scale.
+    const y = -(step * 18);
+    monkeyEl.classList.remove('falling');
+    monkeyEl.style.transform = `translate(-50%, ${y}px)`;
+  }
+
+  function flash(btnEl, ok) {
+    btnEl.classList.remove('flash-ok','flash-bad');
+    void btnEl.offsetWidth;
+    btnEl.classList.add(ok ? 'flash-ok' : 'flash-bad');
+  }
+
+  function endGame(reason) {
+    running = false;
+    canAnswer = false;
+
+    if (reason === 'lose') {
+      monkeyEl.classList.add('falling');
+      setPrompt('Játék vége', 'A majom leesett 🙈');
+      speak('Játék vége. A majom leesett a fáról.');
+      endTitle.textContent = 'Játék vége';
+      endText.textContent = 'Próbáljuk újra!';
+    } else if (reason === 'champion') {
+      setPrompt('TE VAGY A BAJNOK! 🏆', 'Szuper volt!');
+      speak('Te vagy a bajnok!');
+      endTitle.textContent = 'Te vagy a bajnok! 🏆';
+      endText.textContent = 'Szeretnél új játékot?';
+    }
+
+    overlay.classList.add('show');
+  }
+
+  function nextRound() {
+    current = randomDirection();
+    const word = current === 'left' ? 'bal' : 'jobb';
+    setPrompt(`Most: ${word.toUpperCase()}!`, 'Nyomd meg a helyes oldalt');
+    speak(word);
+  }
+
+  function handleAnswer(side) {
+    if (!running || !canAnswer || !current) return;
+
+    const ok = (side === current);
+    const btnEl = side === 'left' ? leftBtn : rightBtn;
+
+    if (ok) {
+      flash(btnEl, true);
+      correctCount += 1;
+      updateMonkeyPosition();
+
+      // Stars every 5 correct answers
+      if (correctCount % STREAK_FOR_STAR === 0) {
+        stars = Math.min(MAX_STARS, stars + 1);
+        renderStars();
+        speak('Csillag!');
+        if (stars >= MAX_STARS) {
+          endGame('champion');
+          return;
+        }
+      }
+
+      // New task
+      setTimeout(() => {
+        if (running) nextRound();
+      }, 250);
+
+    } else {
+      flash(btnEl, false);
+      lives -= 1;
+      renderLives();
+
+      if (lives <= 0) {
+        endGame('lose');
+        return;
+      }
+
+      // Repeat same instruction (do NOT change current)
+      const word = current === 'left' ? 'bal' : 'jobb';
+      setPrompt(`Nem baj! Próbáld újra: ${word.toUpperCase()}!`, `Maradt élet: ${lives}`);
+      speak(`Nem baj. Próbáld újra. ${word}`);
+    }
+  }
+
+  function resetGame() {
+    lives = MAX_LIVES;
+    correctCount = 0;
+    stars = 0;
+    current = null;
+    running = false;
+    canAnswer = false;
+
+    renderLives();
+    renderStars();
+    monkeyEl.classList.remove('falling');
+    monkeyEl.style.transform = 'translate(-50%, 0)';
+    setPrompt('Nyomd meg a START-ot!', 'Utána én mondom: bal vagy jobb');
+    overlay.classList.remove('show');
+  }
+
+  // iOS speech: voices often load asynchronously
+  function initVoices() {
+    voice = pickHungarianVoice();
+  }
+  if ('speechSynthesis' in window) {
+    initVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      initVoices();
+    };
+  }
+
+  // Events
+  startBtn.addEventListener('click', () => {
+    // First user gesture -> allow speech
+    if (!('speechSynthesis' in window)) {
+      setPrompt('Sajnos ezen a böngészőn nincs beszéd.', 'Próbáld Safari-ban iPhone-on');
+      return;
+    }
+
+    overlay.classList.remove('show');
+    monkeyEl.classList.remove('falling');
+    running = true;
+
+    setPrompt('Készen állsz?', 'Mindjárt mondom...');
+    // Small delay feels nicer
+    setTimeout(() => nextRound(), 350);
+  });
+
+  repeatBtn.addEventListener('click', () => {
+    if (!running || !current) {
+      speak('Nyomd meg a startot!');
+      return;
+    }
+    const word = current === 'left' ? 'bal' : 'jobb';
+    speak(word);
+  });
+
+  leftBtn.addEventListener('click', () => handleAnswer('left'));
+  rightBtn.addEventListener('click', () => handleAnswer('right'));
+
+  // Also allow tapping the left/right half anywhere (optional): already big buttons cover most area.
+
+  restartBtn.addEventListener('click', () => {
+    resetGame();
+    running = true;
+    setTimeout(() => nextRound(), 350);
+  });
+
+  closeOverlayBtn.addEventListener('click', () => {
+    overlay.classList.remove('show');
+  });
+
+  // Init UI
+  resetGame();
+})();
+</script>
+</body>
+</html>
