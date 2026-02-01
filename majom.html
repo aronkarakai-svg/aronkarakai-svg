@@ -19,7 +19,7 @@
       --safeRight: env(safe-area-inset-right);
 
       --treeCol: clamp(140px, 22vw, 220px);
-      --hudH: 78px; /* 2 soros fejlécnek */
+      --hudH: 78px; /* 2 soros fejléc */
     }
 
     *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -67,18 +67,14 @@
 
     .stat{
       display:flex;
-      flex-direction:column; /* 2 sor */
+      flex-direction:column;
       gap:6px;
       font-size: 16px;
       font-weight: 950;
       line-height: 1.1;
       white-space: nowrap;
     }
-    .statRow{
-      display:flex;
-      align-items:center;
-      gap:10px;
-    }
+    .statRow{ display:flex; align-items:center; gap:10px; }
 
     .hearts, .stars{ display:flex; gap:6px; }
     .heart, .star{ font-size: 22px; filter: drop-shadow(0 2px 0 rgba(0,0,0,.08)); }
@@ -173,10 +169,7 @@
       letter-spacing: .5px;
       color: rgba(8,51,68,.86);
     }
-    .tapzone:active{
-      transform: scale(.995);
-      background: rgba(255,255,255,.26);
-    }
+    .tapzone:active{ transform: scale(.995); background: rgba(255,255,255,.26); }
     .tapzone .hint{
       position:absolute;
       bottom: 16px;
@@ -247,7 +240,7 @@
     @keyframes flashOk{ 0%{ background: rgba(34,197,94,.18);} 100%{ background: rgba(255,255,255,.18);} }
     @keyframes flashBad{ 0%{ background: rgba(239,68,68,.18);} 100%{ background: rgba(255,255,255,.18);} }
 
-    /* ===== START OVERLAY (NAGY START) ===== */
+    /* START OVERLAY */
     .startOverlay{
       position:absolute;
       inset:0;
@@ -269,17 +262,8 @@
       padding: 18px;
       text-align:center;
     }
-    .startCard h1{
-      margin: 0 0 8px 0;
-      font-size: 28px;
-      letter-spacing:.2px;
-    }
-    .startCard p{
-      margin: 0 0 14px 0;
-      font-size: 16px;
-      opacity:.86;
-      line-height: 1.35;
-    }
+    .startCard h1{ margin: 0 0 8px 0; font-size: 28px; }
+    .startCard p{ margin: 0 0 14px 0; font-size: 16px; opacity:.86; line-height: 1.35; }
     .bigStart{
       font-size: 20px;
       min-height: 56px;
@@ -293,14 +277,9 @@
       50%{ transform: scale(1.03); }
       100%{ transform: scale(1); }
     }
-    .startNote{
-      margin-top: 10px;
-      font-size: 12px;
-      opacity:.68;
-      font-weight: 900;
-    }
+    .startNote{ margin-top: 10px; font-size: 12px; opacity:.68; font-weight: 900; }
 
-    /* ===== GAME OVER OVERLAY ===== */
+    /* GAME OVER OVERLAY */
     .overlay{
       position:absolute;
       inset:0;
@@ -371,17 +350,17 @@
         </div>
       </div>
 
-      <!-- BIG START OVERLAY -->
+      <!-- BIG START -->
       <div class="startOverlay" id="startOverlay">
         <div class="startCard">
           <h1>🐒 Majom a fán</h1>
           <p>Én mondom: <b>bal</b> vagy <b>jobb</b>. Nyomd meg a helyes oldalt!</p>
           <button class="bigStart" id="startBtn" type="button">▶️ START</button>
-          <div class="startNote">Tipp: nagy BAL/JOBB mezőkre nyomj</div>
+          <div class="startNote">Tipp: a nagy BAL/JOBB mezőkre nyomj</div>
         </div>
       </div>
 
-      <!-- GAME OVER / CHAMPION OVERLAY -->
+      <!-- GAME OVER / CHAMPION -->
       <div class="overlay" id="overlay">
         <div class="card">
           <h1 id="endTitle">Vége</h1>
@@ -404,7 +383,6 @@
 
       const leftBtn  = document.getElementById('leftBtn');
       const rightBtn = document.getElementById('rightBtn');
-
       const repeatBtn= document.getElementById('repeatBtn');
 
       const startOverlay = document.getElementById('startOverlay');
@@ -428,23 +406,22 @@
       let current = null; // "left" | "right"
       let canAnswer = false;
 
-      // ===== Queue: speech + sfx in order (no interruption) =====
+      // ===== Queue: speech + sfx sequential, no interruption =====
       let audioQueue = Promise.resolve();
       function enqueue(taskFn) {
         audioQueue = audioQueue.then(() => taskFn()).catch(() => {});
         return audioQueue;
       }
 
-      // ===== Speech (no cancel) =====
+      // ===== Speech (NO cancel) + timeout fallback =====
       const synth = window.speechSynthesis;
-
       function pickHungarianVoice() {
         const voices = synth.getVoices?.() || [];
         return voices.find(v => (v.lang || '').toLowerCase().startsWith('hu')) || null;
       }
       let voice = null;
 
-      function speakAsync(text) {
+      function speakAsync(text, maxMs = 1800) {
         return new Promise((resolve) => {
           if (!synth) return resolve();
 
@@ -454,8 +431,20 @@
           u.pitch = 1.05;
           if (voice) u.voice = voice;
 
-          u.onend = () => resolve();
-          u.onerror = () => resolve();
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            resolve();
+          };
+
+          u.onend = finish;
+          u.onerror = finish;
+
+          // iOS-en néha nincs onend -> fallback
+          const t = setTimeout(finish, maxMs);
+          u.onend = () => { clearTimeout(t); finish(); };
+          u.onerror = () => { clearTimeout(t); finish(); };
 
           synth.speak(u);
         });
@@ -463,11 +452,8 @@
 
       function speakQueued(text) {
         return enqueue(() => {
-          // beszéd közben ne fogadjunk választ
           canAnswer = false;
-          return speakAsync(text).then(() => {
-            canAnswer = true;
-          });
+          return speakAsync(text).then(() => { canAnswer = true; });
         });
       }
 
@@ -497,13 +483,14 @@
           master.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
           master.connect(audioCtx.destination);
 
-          // 2 gyors csilingelő "ding"
           const o1 = audioCtx.createOscillator();
           const o2 = audioCtx.createOscillator();
           o1.type = 'sine';
           o2.type = 'triangle';
+
           o1.frequency.setValueAtTime(880, now);
           o1.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
+
           o2.frequency.setValueAtTime(1760, now + 0.12);
           o2.frequency.exponentialRampToValueAtTime(990, now + 0.28);
 
@@ -521,11 +508,8 @@
 
       function sfxQueuedGood() {
         return enqueue(() => {
-          // hangeffekt közben sem kell kattintani
           canAnswer = false;
-          return beepSequence().then(() => {
-            canAnswer = true;
-          });
+          return beepSequence().then(() => { canAnswer = true; });
         });
       }
 
@@ -607,8 +591,6 @@
         current = randomDirection();
         const word = current === 'left' ? 'bal' : 'jobb';
         setPrompt(`Most: ${word.toUpperCase()}!`, 'Nyomd meg a helyes oldalt');
-
-        // beszéd queue-ban, nem vág el semmit
         speakQueued(word);
       }
 
@@ -623,25 +605,22 @@
           correctCount += 1;
           updateMonkeyPosition();
 
-          // Jó válasz hang: queue-ban, nem szakítja meg a beszédet
+          // jó válasz hang: queue-ban
           sfxQueuedGood();
 
-          // Csillag minden 5 jó után
+          // csillag 5 jó után
           if (correctCount % STREAK_FOR_STAR === 0) {
             stars = Math.min(MAX_STARS, stars + 1);
             renderStars();
             speakQueued('Csillag!');
             if (stars >= MAX_STARS) {
-              // várjuk meg a queue-t, aztán bajnok
               enqueue(() => Promise.resolve()).then(() => endGame('champion'));
               return;
             }
           }
 
-          // következő feladat: queue végére tesszük, hogy ne ütközzön
-          enqueue(() => new Promise(r => setTimeout(r, 180))).then(() => {
-            if (running) nextRound();
-          });
+          // következő kör: ne a speech queue-tól függjön a UI
+          setTimeout(() => { if (running) nextRound(); }, 220);
 
         } else {
           flash(btnEl, false);
@@ -655,8 +634,6 @@
 
           const word = current === 'left' ? 'bal' : 'jobb';
           setPrompt(`Nem baj! Próbáld újra: ${word.toUpperCase()}!`, `Maradt élet: ${lives}`);
-
-          // ugyanazt megismétli, queue-ban
           speakQueued(`Nem baj. Próbáld újra. ${word}`);
         }
       }
@@ -674,14 +651,13 @@
         monkeyEl.classList.remove('falling');
         monkeyEl.style.transform = 'translate(-50%, 0)';
         setPrompt('Nyomd meg a START-ot!', 'Utána én mondom: bal vagy jobb');
+
         overlay.classList.remove('show');
         showStartOverlay(true);
       }
 
       // Voices load async on iOS
-      function initVoices() {
-        voice = pickHungarianVoice();
-      }
+      function initVoices() { voice = pickHungarianVoice(); }
       if ('speechSynthesis' in window) {
         initVoices();
         window.speechSynthesis.onvoiceschanged = () => initVoices();
@@ -689,12 +665,6 @@
 
       // ===== Events =====
       startBtn.addEventListener('click', async () => {
-        if (!('speechSynthesis' in window)) {
-          setPrompt('Sajnos ezen a böngészőn nincs beszéd.', 'Próbáld Safari-ban iPhone-on');
-          return;
-        }
-
-        // iOS: audio context unlock on user gesture
         await ensureAudioContext();
 
         overlay.classList.remove('show');
@@ -702,11 +672,10 @@
         showStartOverlay(false);
 
         running = true;
-
         setPrompt('Készen állsz?', 'Mindjárt mondom...');
 
-        // első kör queue-ban
-        enqueue(() => new Promise(r => setTimeout(r, 250))).then(() => nextRound());
+        // FONTOS: az első kör ne a queue-tól függjön
+        setTimeout(() => { if (running) nextRound(); }, 350);
       });
 
       repeatBtn.addEventListener('click', () => {
@@ -724,15 +693,13 @@
       restartBtn.addEventListener('click', async () => {
         await ensureAudioContext();
         resetGame();
-        overlay.classList.remove('show');
         showStartOverlay(false);
         running = true;
-        enqueue(() => new Promise(r => setTimeout(r, 250))).then(() => nextRound());
+        setTimeout(() => { if (running) nextRound(); }, 350);
       });
 
       closeOverlayBtn.addEventListener('click', () => {
         overlay.classList.remove('show');
-        // ha bezárja, visszajön a start overlay, hogy egyértelmű legyen az indítás
         showStartOverlay(true);
       });
 
