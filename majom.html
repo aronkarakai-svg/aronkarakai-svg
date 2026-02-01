@@ -11,7 +11,6 @@
       --bg2:#eafff5;
       --panel: rgba(255,255,255,.78);
       --text:#083344;
-
       --shadow: 0 12px 30px rgba(0,0,0,.14);
 
       --safeTop: env(safe-area-inset-top);
@@ -19,9 +18,8 @@
       --safeLeft: env(safe-area-inset-left);
       --safeRight: env(safe-area-inset-right);
 
-      /* middle column width scales with screen */
       --treeCol: clamp(140px, 22vw, 220px);
-      --hudH: 64px;
+      --hudH: 78px; /* 2 soros fejlécnek */
     }
 
     *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -55,11 +53,11 @@
     }
 
     .topbar{
-      height: var(--hudH);
+      min-height: var(--hudH);
       display:flex;
-      align-items:center;
+      align-items:flex-start;
       justify-content:space-between;
-      gap:12px;
+      gap:10px;
       padding: 10px 12px;
       border-radius: 18px;
       background: var(--panel);
@@ -69,12 +67,19 @@
 
     .stat{
       display:flex;
-      align-items:center;
-      gap:10px;
-      font-size: 18px;
+      flex-direction:column; /* 2 sor */
+      gap:6px;
+      font-size: 16px;
       font-weight: 950;
+      line-height: 1.1;
       white-space: nowrap;
     }
+    .statRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
     .hearts, .stars{ display:flex; gap:6px; }
     .heart, .star{ font-size: 22px; filter: drop-shadow(0 2px 0 rgba(0,0,0,.08)); }
     .muted{ opacity:.28; filter:none; }
@@ -84,15 +89,16 @@
       gap:10px;
       margin-left:auto;
       align-items:center;
+      padding-top: 4px;
     }
 
     button{
       border:0;
       border-radius: 14px;
-      padding: 10px 12px;
+      padding: 12px 14px;
       font-size: 15px;
       font-weight: 950;
-      min-height: 42px;
+      min-height: 44px;
       color:#fff;
       background: linear-gradient(180deg, #0ea5e9, #0284c7);
       box-shadow: 0 10px 20px rgba(2,132,199,.22);
@@ -132,6 +138,7 @@
       backdrop-filter: blur(10px);
       text-align:center;
       max-width: min(520px, 92vw);
+      pointer-events:none;
     }
     .prompt small{
       display:block;
@@ -141,7 +148,6 @@
       margin-top: 3px;
     }
 
-    /* BAL | FA | JOBB */
     .playfield{
       position:absolute;
       inset:0;
@@ -149,7 +155,7 @@
       grid-template-columns: 1fr var(--treeCol) 1fr;
       gap: 10px;
       padding: 18px;
-      padding-top: calc(18px + 62px); /* room for prompt */
+      padding-top: calc(18px + 62px);
       align-items: stretch;
     }
 
@@ -171,7 +177,6 @@
       transform: scale(.995);
       background: rgba(255,255,255,.26);
     }
-
     .tapzone .hint{
       position:absolute;
       bottom: 16px;
@@ -239,15 +244,63 @@
 
     .flash-ok{ animation: flashOk 240ms ease; }
     .flash-bad{ animation: flashBad 240ms ease; }
-    @keyframes flashOk{
-      0%{ background: rgba(34,197,94,.18); }
-      100%{ background: rgba(255,255,255,.18); }
+    @keyframes flashOk{ 0%{ background: rgba(34,197,94,.18);} 100%{ background: rgba(255,255,255,.18);} }
+    @keyframes flashBad{ 0%{ background: rgba(239,68,68,.18);} 100%{ background: rgba(255,255,255,.18);} }
+
+    /* ===== START OVERLAY (NAGY START) ===== */
+    .startOverlay{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: rgba(0,0,0,.22);
+      backdrop-filter: blur(6px);
+      padding: 18px;
+      z-index: 12;
     }
-    @keyframes flashBad{
-      0%{ background: rgba(239,68,68,.18); }
-      100%{ background: rgba(255,255,255,.18); }
+    .startOverlay.hidden{ display:none; }
+
+    .startCard{
+      width: min(520px, 92vw);
+      background: rgba(255,255,255,.92);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      text-align:center;
+    }
+    .startCard h1{
+      margin: 0 0 8px 0;
+      font-size: 28px;
+      letter-spacing:.2px;
+    }
+    .startCard p{
+      margin: 0 0 14px 0;
+      font-size: 16px;
+      opacity:.86;
+      line-height: 1.35;
+    }
+    .bigStart{
+      font-size: 20px;
+      min-height: 56px;
+      padding: 14px 18px;
+      width: min(320px, 92%);
+      border-radius: 18px;
+      animation: pulse 1.25s ease-in-out infinite;
+    }
+    @keyframes pulse{
+      0%{ transform: scale(1); }
+      50%{ transform: scale(1.03); }
+      100%{ transform: scale(1); }
+    }
+    .startNote{
+      margin-top: 10px;
+      font-size: 12px;
+      opacity:.68;
+      font-weight: 900;
     }
 
+    /* ===== GAME OVER OVERLAY ===== */
     .overlay{
       position:absolute;
       inset:0;
@@ -257,7 +310,7 @@
       background: rgba(0,0,0,.35);
       backdrop-filter: blur(6px);
       padding: 18px;
-      z-index: 10;
+      z-index: 11;
     }
     .overlay.show{ display:flex; }
 
@@ -278,19 +331,19 @@
 <body>
   <div class="app" id="app">
     <div class="topbar">
-      <div class="stat" aria-label="Életek">
-        <span>Élet:</span>
-        <div class="hearts" id="hearts"></div>
-      </div>
-
-      <div class="stat" aria-label="Csillagok">
-        <span>Csillag:</span>
-        <div class="stars" id="stars"></div>
+      <div class="stat" aria-label="Életek és csillagok">
+        <div class="statRow">
+          <span>Élet:</span>
+          <div class="hearts" id="hearts"></div>
+        </div>
+        <div class="statRow">
+          <span>Csillag:</span>
+          <div class="stars" id="stars"></div>
+        </div>
       </div>
 
       <div class="controls">
         <button class="btn-secondary" id="repeatBtn" type="button">🔊 Ismétlés</button>
-        <button id="startBtn" type="button">▶️ Start</button>
       </div>
     </div>
 
@@ -318,6 +371,17 @@
         </div>
       </div>
 
+      <!-- BIG START OVERLAY -->
+      <div class="startOverlay" id="startOverlay">
+        <div class="startCard">
+          <h1>🐒 Majom a fán</h1>
+          <p>Én mondom: <b>bal</b> vagy <b>jobb</b>. Nyomd meg a helyes oldalt!</p>
+          <button class="bigStart" id="startBtn" type="button">▶️ START</button>
+          <div class="startNote">Tipp: nagy BAL/JOBB mezőkre nyomj</div>
+        </div>
+      </div>
+
+      <!-- GAME OVER / CHAMPION OVERLAY -->
       <div class="overlay" id="overlay">
         <div class="card">
           <h1 id="endTitle">Vége</h1>
@@ -340,8 +404,11 @@
 
       const leftBtn  = document.getElementById('leftBtn');
       const rightBtn = document.getElementById('rightBtn');
-      const startBtn = document.getElementById('startBtn');
+
       const repeatBtn= document.getElementById('repeatBtn');
+
+      const startOverlay = document.getElementById('startOverlay');
+      const startBtn = document.getElementById('startBtn');
 
       const overlay  = document.getElementById('overlay');
       const endTitle = document.getElementById('endTitle');
@@ -349,7 +416,7 @@
       const restartBtn = document.getElementById('restartBtn');
       const closeOverlayBtn = document.getElementById('closeOverlayBtn');
 
-      // Game state
+      // ===== Game state =====
       const MAX_LIVES = 3;
       const STREAK_FOR_STAR = 5;
       const MAX_STARS = 5;
@@ -361,7 +428,14 @@
       let current = null; // "left" | "right"
       let canAnswer = false;
 
-      // Speech
+      // ===== Queue: speech + sfx in order (no interruption) =====
+      let audioQueue = Promise.resolve();
+      function enqueue(taskFn) {
+        audioQueue = audioQueue.then(() => taskFn()).catch(() => {});
+        return audioQueue;
+      }
+
+      // ===== Speech (no cancel) =====
       const synth = window.speechSynthesis;
 
       function pickHungarianVoice() {
@@ -370,23 +444,92 @@
       }
       let voice = null;
 
-      function speak(text) {
-        if (!synth) return;
-        try { synth.cancel(); } catch(e) {}
+      function speakAsync(text) {
+        return new Promise((resolve) => {
+          if (!synth) return resolve();
 
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'hu-HU';
-        u.rate = 0.95;
-        u.pitch = 1.05;
-        if (voice) u.voice = voice;
+          const u = new SpeechSynthesisUtterance(text);
+          u.lang = 'hu-HU';
+          u.rate = 0.95;
+          u.pitch = 1.05;
+          if (voice) u.voice = voice;
 
-        canAnswer = false;
-        u.onend = () => { canAnswer = true; };
-        u.onerror = () => { canAnswer = true; };
+          u.onend = () => resolve();
+          u.onerror = () => resolve();
 
-        synth.speak(u);
+          synth.speak(u);
+        });
       }
 
+      function speakQueued(text) {
+        return enqueue(() => {
+          // beszéd közben ne fogadjunk választ
+          canAnswer = false;
+          return speakAsync(text).then(() => {
+            canAnswer = true;
+          });
+        });
+      }
+
+      // ===== SFX (Web Audio) =====
+      let audioCtx = null;
+
+      function ensureAudioContext() {
+        if (!audioCtx) {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (Ctx) audioCtx = new Ctx();
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          return audioCtx.resume().catch(() => {});
+        }
+        return Promise.resolve();
+      }
+
+      function beepSequence() {
+        return new Promise(async (resolve) => {
+          await ensureAudioContext();
+          if (!audioCtx) return resolve();
+
+          const now = audioCtx.currentTime;
+          const master = audioCtx.createGain();
+          master.gain.setValueAtTime(0.0001, now);
+          master.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
+          master.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+          master.connect(audioCtx.destination);
+
+          // 2 gyors csilingelő "ding"
+          const o1 = audioCtx.createOscillator();
+          const o2 = audioCtx.createOscillator();
+          o1.type = 'sine';
+          o2.type = 'triangle';
+          o1.frequency.setValueAtTime(880, now);
+          o1.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
+          o2.frequency.setValueAtTime(1760, now + 0.12);
+          o2.frequency.exponentialRampToValueAtTime(990, now + 0.28);
+
+          o1.connect(master);
+          o2.connect(master);
+
+          o1.start(now);
+          o2.start(now + 0.10);
+          o1.stop(now + 0.18);
+          o2.stop(now + 0.34);
+
+          setTimeout(resolve, 380);
+        });
+      }
+
+      function sfxQueuedGood() {
+        return enqueue(() => {
+          // hangeffekt közben sem kell kattintani
+          canAnswer = false;
+          return beepSequence().then(() => {
+            canAnswer = true;
+          });
+        });
+      }
+
+      // ===== UI helpers =====
       function renderLives() {
         heartsEl.innerHTML = '';
         for (let i = 0; i < MAX_LIVES; i++) {
@@ -415,7 +558,6 @@
         return Math.random() < 0.5 ? 'left' : 'right';
       }
 
-      // Pixel-accurate climb: uses trunk height
       function updateMonkeyPosition() {
         const trunk = document.getElementById('trunk');
         if (!trunk) return;
@@ -436,6 +578,11 @@
         btnEl.classList.add(ok ? 'flash-ok' : 'flash-bad');
       }
 
+      function showStartOverlay(show) {
+        if (show) startOverlay.classList.remove('hidden');
+        else startOverlay.classList.add('hidden');
+      }
+
       function endGame(reason) {
         running = false;
         canAnswer = false;
@@ -443,12 +590,12 @@
         if (reason === 'lose') {
           monkeyEl.classList.add('falling');
           setPrompt('Játék vége', 'A majom leesett 🙈');
-          speak('Játék vége. A majom leesett a fáról.');
+          speakQueued('Játék vége. A majom leesett a fáról.');
           endTitle.textContent = 'Játék vége';
           endText.textContent = 'Próbáljuk újra!';
         } else if (reason === 'champion') {
           setPrompt('TE VAGY A BAJNOK! 🏆', 'Szuper volt!');
-          speak('Te vagy a bajnok!');
+          speakQueued('Te vagy a bajnok!');
           endTitle.textContent = 'Te vagy a bajnok! 🏆';
           endText.textContent = 'Szeretnél új játékot?';
         }
@@ -460,7 +607,9 @@
         current = randomDirection();
         const word = current === 'left' ? 'bal' : 'jobb';
         setPrompt(`Most: ${word.toUpperCase()}!`, 'Nyomd meg a helyes oldalt');
-        speak(word);
+
+        // beszéd queue-ban, nem vág el semmit
+        speakQueued(word);
       }
 
       function handleAnswer(side) {
@@ -474,20 +623,25 @@
           correctCount += 1;
           updateMonkeyPosition();
 
-          // star each 5 correct
+          // Jó válasz hang: queue-ban, nem szakítja meg a beszédet
+          sfxQueuedGood();
+
+          // Csillag minden 5 jó után
           if (correctCount % STREAK_FOR_STAR === 0) {
             stars = Math.min(MAX_STARS, stars + 1);
             renderStars();
-            speak('Csillag!');
+            speakQueued('Csillag!');
             if (stars >= MAX_STARS) {
-              endGame('champion');
+              // várjuk meg a queue-t, aztán bajnok
+              enqueue(() => Promise.resolve()).then(() => endGame('champion'));
               return;
             }
           }
 
-          setTimeout(() => {
+          // következő feladat: queue végére tesszük, hogy ne ütközzön
+          enqueue(() => new Promise(r => setTimeout(r, 180))).then(() => {
             if (running) nextRound();
-          }, 220);
+          });
 
         } else {
           flash(btnEl, false);
@@ -499,10 +653,11 @@
             return;
           }
 
-          // repeat same instruction
           const word = current === 'left' ? 'bal' : 'jobb';
           setPrompt(`Nem baj! Próbáld újra: ${word.toUpperCase()}!`, `Maradt élet: ${lives}`);
-          speak(`Nem baj. Próbáld újra. ${word}`);
+
+          // ugyanazt megismétli, queue-ban
+          speakQueued(`Nem baj. Próbáld újra. ${word}`);
         }
       }
 
@@ -520,9 +675,10 @@
         monkeyEl.style.transform = 'translate(-50%, 0)';
         setPrompt('Nyomd meg a START-ot!', 'Utána én mondom: bal vagy jobb');
         overlay.classList.remove('show');
+        showStartOverlay(true);
       }
 
-      // iOS: voices load async
+      // Voices load async on iOS
       function initVoices() {
         voice = pickHungarianVoice();
       }
@@ -531,40 +687,53 @@
         window.speechSynthesis.onvoiceschanged = () => initVoices();
       }
 
-      // Events
-      startBtn.addEventListener('click', () => {
+      // ===== Events =====
+      startBtn.addEventListener('click', async () => {
         if (!('speechSynthesis' in window)) {
           setPrompt('Sajnos ezen a böngészőn nincs beszéd.', 'Próbáld Safari-ban iPhone-on');
           return;
         }
+
+        // iOS: audio context unlock on user gesture
+        await ensureAudioContext();
+
         overlay.classList.remove('show');
         monkeyEl.classList.remove('falling');
+        showStartOverlay(false);
+
         running = true;
 
         setPrompt('Készen állsz?', 'Mindjárt mondom...');
-        setTimeout(() => nextRound(), 300);
+
+        // első kör queue-ban
+        enqueue(() => new Promise(r => setTimeout(r, 250))).then(() => nextRound());
       });
 
       repeatBtn.addEventListener('click', () => {
         if (!running || !current) {
-          speak('Nyomd meg a startot!');
+          speakQueued('Nyomd meg a startot!');
           return;
         }
         const word = current === 'left' ? 'bal' : 'jobb';
-        speak(word);
+        speakQueued(word);
       });
 
       leftBtn.addEventListener('click', () => handleAnswer('left'));
       rightBtn.addEventListener('click', () => handleAnswer('right'));
 
-      restartBtn.addEventListener('click', () => {
+      restartBtn.addEventListener('click', async () => {
+        await ensureAudioContext();
         resetGame();
+        overlay.classList.remove('show');
+        showStartOverlay(false);
         running = true;
-        setTimeout(() => nextRound(), 300);
+        enqueue(() => new Promise(r => setTimeout(r, 250))).then(() => nextRound());
       });
 
       closeOverlayBtn.addEventListener('click', () => {
         overlay.classList.remove('show');
+        // ha bezárja, visszajön a start overlay, hogy egyértelmű legyen az indítás
+        showStartOverlay(true);
       });
 
       // Init
