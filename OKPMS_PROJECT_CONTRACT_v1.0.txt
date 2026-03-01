@@ -1,0 +1,425 @@
+PROJECT CONTRACT v1.0 — Offline Knowledge & Project Management Studio (OKPMS)
+
+==================================================
+0) CONTRACT STATUS
+==================================================
+
+Status: Approved architecture definition baseline (v1.0)
+Project type: Large-scale single-page application (10k–100k LOC)
+Runtime: Must open and run from file:// by double-clicking index.html
+Tech: Vanilla HTML + CSS + JavaScript only
+No frameworks, no build step, no npm, no CDN, no service workers, no external fonts.
+
+==================================================
+1) GOALS, SCOPE, NON-GOALS
+==================================================
+
+1.1 Core Goals
+
+OKPMS is a fully offline-first productivity studio combining:
+
+- Knowledge Base (wiki-style structured documents)
+- Task & Project Management (kanban + backlog)
+- Local structured database (IndexedDB primary)
+- Graph-style entity visualization
+- Plugin-capable modular architecture
+
+1.2 In-Scope Modules
+
+- Knowledge Base module
+- Task & Project module
+- Data layer (entities, storage abstraction, migrations)
+- Graph visualization module
+- Plugin system
+- UI/UX framework layer
+
+1.3 Non-Goals
+
+- No multi-user
+- No authentication
+- No cloud sync
+- No collaboration
+- No backend API
+- No analytics
+
+==================================================
+2) HARD CONSTRAINTS (BINDING)
+==================================================
+
+- Must run under file://
+- No fetch() to external resources
+- No CDN
+- No ES module import/export
+- No dynamic imports
+- No server logic
+- No service workers
+- No external fonts
+- All assets must be local and relative paths
+
+Allowed:
+- IndexedDB (primary)
+- localStorage (fallback)
+- Web Workers (local only)
+- Canvas / SVG
+- Hash routing
+
+==================================================
+3) OFFLINE COMPATIBILITY RULES
+==================================================
+
+3.1 Module Strategy
+
+Pattern: Single global namespace + IIFE modules.
+
+- window.OKPMS is the only global.
+- Each JS file is an IIFE attaching to OKPMS.
+- No import/export.
+- Script order defined explicitly in index.html.
+- Optional loader.js allowed only with static list (no fetch).
+
+3.2 Lazy Loading Strategy
+
+No dynamic file loading.
+Lazy behavior = deferred initialization only.
+
+3.3 IndexedDB Fallback
+
+Primary: IndexedDB
+Fallback: localStorage adapter (reduced capability)
+
+3.4 Browser Handling
+
+- Feature detection only
+- Hash routing baseline
+- History API optional and off by default
+
+==================================================
+4) TARGET BASELINE
+==================================================
+
+Modern desktop Chrome, Edge, Firefox.
+Safari best-effort.
+
+Required features:
+- IndexedDB
+- contenteditable
+- Canvas or SVG
+- location.hash
+
+==================================================
+5) HIGH-LEVEL ARCHITECTURE
+==================================================
+
+Layers:
+
+1) Boot/Core
+2) Data Layer
+3) Domain Services
+4) UI Framework
+5) Feature Modules
+6) Plugins
+
+==================================================
+6) STATE MANAGEMENT
+==================================================
+
+Pattern: Central Store (Redux-like custom)
+
+- OKPMS.store
+- Actions + Reducers + Selectors
+- Effects for async
+- Event Bus for cross-cutting notifications only
+
+State structure:
+
+state.app
+state.entities
+state.indexes
+state.settings
+state.runtime
+
+==================================================
+7) ROUTING
+==================================================
+
+Hash-based only:
+
+#/kb/doc/:id
+#/tasks/board
+#/graph
+#/settings
+#/debug
+
+==================================================
+8) DATA MODEL
+==================================================
+
+Normalized entities:
+
+settings
+doc
+docVersion
+project
+epic
+task
+tag
+relationship
+workflow
+meta
+
+ID format:
+Prefix-based strings:
+DOC_
+TSK_
+PRJ_
+EPC_
+TAG_
+REL_
+WFL_
+
+Timestamps stored as epoch milliseconds.
+
+==================================================
+9) STORAGE LAYER
+==================================================
+
+Interface: StorageAdapter
+
+Methods:
+init()
+get()
+put()
+delete()
+list()
+bulkPut()
+transaction()
+
+Implementations:
+- IdbAdapter (primary)
+- LocalStorageAdapter (fallback)
+
+Schema versioning:
+OKPMS.SCHEMA_VERSION = X
+
+Migrations:
+Sequential, idempotent.
+Stored in scripts/data/migrations/
+
+Recovery Mode:
+If migration fails → read-only + export access.
+
+==================================================
+10) KNOWLEDGE BASE REQUIREMENTS
+==================================================
+
+- CRUD documents
+- Lightweight contenteditable editor
+- Sanitization required
+- Tag system
+- Internal linking
+- Tree hierarchy
+- Search index
+- Version snapshots
+
+==================================================
+11) TASK & PROJECT REQUIREMENTS
+==================================================
+
+- Projects → Epics → Tasks → Subtasks
+- Configurable workflow statuses
+- Kanban board
+- Backlog view
+- Filters
+- Due dates
+- Priority
+- Task ↔ Document linking
+
+==================================================
+12) GRAPH MODULE
+==================================================
+
+- Canvas-first rendering
+- Pan / Zoom
+- rAF rendering
+- Node culling
+- Basic clustering
+- Spatial hit-testing buckets
+
+Target usability: ~5k nodes manageable.
+
+==================================================
+13) PLUGIN SYSTEM
+==================================================
+
+Location: /plugins/
+
+Registration:
+
+OKPMS.plugins.register({
+  id,
+  name,
+  version,
+  init(ctx),
+  onEvent?,
+  dispose?
+})
+
+Hooks:
+onAppBoot
+onRouteChange
+onEntitySaved
+onCommandPaletteOpen
+
+Logical sandbox only.
+
+Feature flags required.
+
+==================================================
+14) CSS ARCHITECTURE
+==================================================
+
+Methodology: BEM + utility helpers
+
+Blocks:
+.componentName
+
+Elements:
+.componentName__element
+
+Modifiers:
+.componentName--modifier
+
+Utilities:
+.u-*
+
+State:
+.is-*
+
+Themes:
+CSS variables
+Light + Dark + Custom
+
+==================================================
+15) DIRECTORY STRUCTURE
+==================================================
+
+/index.html
+/assets/
+/styles/
+/scripts/
+  boot/
+  core/
+  data/
+  services/
+  ui/
+  features/
+plugins/
+tests/
+docs/
+
+==================================================
+16) CODING STANDARDS
+==================================================
+
+- 2-space indent
+- Semicolons required
+- Single quotes in JS
+- No globals except window.OKPMS
+- JSDoc for public APIs
+- Explicit null checks
+- No monkey-patching built-ins
+
+==================================================
+17) ACCESSIBILITY BASELINE
+==================================================
+
+- Full keyboard navigation
+- Visible focus states
+- ARIA labels for icon-only controls
+- WCAG AA contrast target
+- prefers-reduced-motion support
+
+==================================================
+18) PERFORMANCE TARGETS
+==================================================
+
+- < 2s interactive startup (best effort)
+- < 300MB memory steady state
+- Virtualize long lists
+- Debounced filtering
+- Incremental indexing
+
+==================================================
+19) DEFINITION OF DONE
+==================================================
+
+A feature is done when:
+
+- Works via file://
+- Persists data
+- Has keyboard baseline
+- Graceful error handling
+- Updates CHANGELOG.md
+- Adds migration if schema changed
+- Manual tests updated
+
+==================================================
+20) TEST STRATEGY
+==================================================
+
+- Manual test checklist per feature
+- Internal Debug Panel
+- Optional test harness page (pure function tests)
+
+==================================================
+21) CHANGE MANAGEMENT
+==================================================
+
+Versioning:
+MAJOR.MINOR.PATCH
+
+Feature IDs:
+FEAT-0001
+
+Task IDs:
+TASK-0001
+
+Changelog:
+docs/CHANGELOG.md
+
+Migration documentation:
+docs/MIGRATIONS.md
+
+==================================================
+22) HANDOFF BLOCK
+==================================================
+
+SEND TO: ORCHESTRATOR
+BLOCK ID: AC-0001
+
+PROJECT: OKPMS
+RUNTIME: file:// only
+ARCHITECTURE: Global namespace + IIFE modules
+STATE: Central store
+ROUTING: Hash only
+PERSISTENCE: IndexedDB + localStorage fallback
+ENTITIES: Normalized with prefixes
+PLUGINS: Local static registration
+CSS: BEM + utilities
+NO ES MODULES
+NO FETCH
+NO CDN
+NO SERVICE WORKER
+
+Initial Phases:
+
+Phase 0 – Boot skeleton
+Phase 1 – Data layer
+Phase 2 – UI shell
+Phase 3 – Knowledge Base MVP
+Phase 4 – Tasks MVP
+Phase 5 – Graph MVP
+Phase 6 – Plugins
+Phase 7 – Hardening
+
+END BLOCK
